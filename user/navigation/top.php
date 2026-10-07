@@ -130,6 +130,13 @@ function squigglyUnderline()
                     </a>
 
                     <?php include ROOT_PATH . '/user/navigation/navproductscategory.php'; ?>
+
+                    <a href="https://www.yfk20.com/login"
+                        class="relative text-sm font-medium <?= $isInspirationActive ? 'text-orange-500' : 'text-orange-600 hover:text-orange-500' ?> transition-colors duration-150">
+                        Sunpina
+                        <?php if ($isInspirationActive)
+                            echo squigglyUnderline(); ?>
+                    </a>
                 </div>
             </div>
             <!-- Right: Search + Icons + Hamburger -->
