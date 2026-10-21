@@ -148,7 +148,7 @@ if (!function_exists('nhCatLinkClass')) {
             <p class="flex items-center gap-2 truncate">
                 <i class="fa-solid fa-helmet-safety text-orange-500"></i>
                 Building materials &amp; home essentials by
-                <span class="text-white font-semibold">NobleHome Construction</span>
+                <span class="text-white font-semibold">NobleHomeDepot</span>
             </p>
             <div class="flex items-center gap-5 shrink-0">
                 <a href="<?= BASE_URL ?>/find-professional"
