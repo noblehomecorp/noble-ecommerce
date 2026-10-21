@@ -28,8 +28,8 @@ $siteCount = count($promoSites);
             <div class="flex items-center gap-2.5">
                 <span class="w-1.5 h-5 bg-orange-500 rounded-sm"></span>
                 <div>
-                    <h2 class="text-base md:text-lg font-extrabold text-gray-900">Promotions</h2>
-                    <p class="text-xs md:text-sm text-gray-500">Featured promotions and offers</p>
+                    <h2 class="text-base md:text-lg font-extrabold text-gray-900">Explore More</h2>
+                    <p class="text-xs md:text-sm text-gray-500">Discover more from NobleHome</p>
                 </div>
             </div>
         </div>
@@ -53,7 +53,7 @@ $siteCount = count($promoSites);
                 </div>
 
                 <div class="p-5 md:p-8 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Promotion</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Explore</p>
                     <h3 class="text-xl md:text-2xl font-bold text-gray-900 mt-1.5 leading-tight">
                         <?= htmlspecialchars($site['name']) ?>
                     </h3>
