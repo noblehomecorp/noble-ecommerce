@@ -1,36 +1,48 @@
-<!-- Cart Dropdown Panel (desktop hover, kapareho ng style ng user dropdown) -->
+<!-- Cart Dropdown Panel (desktop hover / keyboard focus)
+     pt-2 sa outer wrapper = invisible "bridge" para hindi magsara ang dropdown
+     habang inililipat ang mouse mula sa Cart button papunta sa panel. -->
 <div id="cart-dropdown"
-    class="hidden md:block absolute top-full right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+    class="hidden md:block absolute top-full right-0 pt-2 w-80 opacity-0 invisible
+           group-hover:opacity-100 group-hover:visible
+           group-focus-within:opacity-100 group-focus-within:visible
+           transition-all duration-200 z-50">
 
-    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p class="text-sm font-semibold text-gray-800">My Cart</p>
-        <span id="cart-dropdown-count" class="text-xs text-gray-400"></span>
-    </div>
+    <div class="relative bg-white rounded-lg shadow-xl border border-gray-100">
+        <!-- Caret pointing up to the Cart button -->
+        <div class="absolute -top-1.5 right-8 w-3 h-3 bg-white border-t border-l border-gray-100 rotate-45"></div>
 
-    <div id="cart-dropdown-body" class="max-h-80 overflow-y-auto">
-        <div class="px-4 py-8 text-center text-xs text-gray-400">
-            <i class="fa-solid fa-spinner fa-spin"></i>
+        <div class="relative px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p class="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                <i class="fa-solid fa-cart-shopping text-orange-500"></i> My Cart
+            </p>
+            <span id="cart-dropdown-count" class="text-xs text-gray-400"></span>
         </div>
-    </div>
 
-    <div id="cart-dropdown-footer" class="border-t border-gray-100 px-4 py-3 hidden">
-        <div id="cart-dropdown-warning"
-            class="hidden flex items-start gap-2 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-2 mb-3">
-            <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
-            <span>Some items exceed available stock. Please adjust before checkout.</span>
+        <div id="cart-dropdown-body" class="max-h-80 overflow-y-auto">
+            <div class="px-4 py-8 text-center text-xs text-gray-400">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+            </div>
         </div>
-        <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-gray-600">Subtotal</span>
-            <span id="cart-dropdown-subtotal" class="text-sm font-bold text-gray-900"></span>
+
+        <div id="cart-dropdown-footer" class="border-t border-gray-100 px-4 py-3 hidden">
+            <div id="cart-dropdown-warning"
+                class="hidden flex items-start gap-2 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-2 mb-3">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span>Some items exceed available stock. Please adjust before checkout.</span>
+            </div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-semibold text-gray-600">Subtotal</span>
+                <span id="cart-dropdown-subtotal" class="text-sm font-bold text-gray-900"></span>
+            </div>
+            <a href="<?= BASE_URL ?>/checkout" id="cart-dropdown-checkout"
+                class="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-2.5 rounded-md transition-colors duration-150 mb-2">
+                <i class="fa-solid fa-lock mr-1"></i> Proceed to Checkout
+            </a>
+            <a href="<?= BASE_URL ?>/cartview"
+                class="block w-full text-center text-xs font-medium text-gray-500 hover:text-orange-600 py-1 transition-colors duration-150">
+                View Full Cart
+            </a>
         </div>
-        <a href="<?= BASE_URL ?>/checkout" id="cart-dropdown-checkout"
-            class="block w-full text-center bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold py-2.5 rounded-md transition-colors duration-150 mb-2">
-            <i class="fa-solid fa-lock mr-1"></i> Proceed to Checkout
-        </a>
-        <a href="<?= BASE_URL ?>/cartview"
-            class="block w-full text-center text-xs font-medium text-gray-500 hover:text-amber-600 py-1 transition-colors duration-150">
-            View Full Cart
-        </a>
     </div>
 </div>
 
@@ -67,7 +79,12 @@
 
     function renderItems(data) {
         if (!data.items || data.items.length === 0) {
-            body.innerHTML = '<div class="px-4 py-8 text-center text-xs text-gray-400">Your cart is empty.</div>';
+            body.innerHTML = `
+                <div class="px-4 py-8 text-center">
+                    <i class="fa-solid fa-cart-flatbed text-2xl text-gray-200"></i>
+                    <p class="text-xs text-gray-400 mt-2">Your cart is empty.</p>
+                    <a href="<?= BASE_URL ?>/shop" class="inline-block mt-3 text-xs font-semibold text-orange-500 hover:text-orange-600">Start shopping →</a>
+                </div>`;
             footer.classList.add('hidden');
             return;
         }
@@ -88,7 +105,7 @@
 
                 <div class="min-w-0 flex-1">
                     <a href="<?= BASE_URL ?>/mainproductview?id=${item.product_id}"
-                       class="text-xs text-gray-800 font-medium truncate block hover:text-amber-600">${item.name}</a>
+                       class="text-xs text-gray-800 font-medium truncate block hover:text-orange-600">${item.name}</a>
                     ${isDefaultVariantLabel(item.variant) ? '' : `<p class="text-[11px] text-gray-400 truncate">${item.variant}</p>`}
                     <p class="text-[11px] font-semibold text-gray-700 mt-0.5">
                         ₱${formatPrice(item.price)}
@@ -109,12 +126,12 @@
 
                     <!-- Qty controls -->
                     <div class="flex items-center gap-1 mt-1.5 border border-gray-200 rounded-md w-fit overflow-hidden">
-                        <button type="button" class="mini-qty-btn w-6 h-6 flex items-center justify-center text-gray-400 hover:bg-amber-50 hover:text-amber-600 text-[10px] disabled:opacity-30 disabled:cursor-not-allowed"
+                        <button type="button" class="mini-qty-btn w-6 h-6 flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-600 text-[10px] disabled:opacity-30 disabled:cursor-not-allowed"
                             data-action="dec" data-cart-id="${item.cart_id}" ${isOOS ? 'disabled' : ''}>
                             <i class="fa-solid fa-minus"></i>
                         </button>
                         <span class="mini-qty-display w-6 text-center text-[11px] font-semibold text-gray-800">${item.quantity}</span>
-                        <button type="button" class="mini-qty-btn w-6 h-6 flex items-center justify-center text-gray-400 hover:bg-amber-50 hover:text-amber-600 text-[10px] disabled:opacity-30 disabled:cursor-not-allowed"
+                        <button type="button" class="mini-qty-btn w-6 h-6 flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-600 text-[10px] disabled:opacity-30 disabled:cursor-not-allowed"
                             data-action="inc" data-cart-id="${item.cart_id}" ${(isOOS || item.quantity >= item.stock) ? 'disabled' : ''}>
                             <i class="fa-solid fa-plus"></i>
                         </button>
@@ -179,11 +196,9 @@
             const data = await res.json();
 
             // Tawag ulit ng buong mini cart para sigurado tama lahat ng laman
-            // (subtotal, stock labels, atbp.) — simple lang at always in sync
             await fetchMiniCart();
 
-            // I-broadcast na may nagbago sa cart, para ma-realtime din ang ibang
-            // bahagi ng page (hal. mainproductview) na umaasa sa cart state
+            // I-broadcast na may nagbago sa cart
             window.dispatchEvent(new CustomEvent('noblecart:changed'));
 
             if (!data.ok) {
@@ -208,8 +223,6 @@
 
             await fetchMiniCart();
 
-            // I-broadcast na may nagbago sa cart (item removal), para ma-realtime
-            // din ang ibang bahagi ng page (hal. mainproductview)
             window.dispatchEvent(new CustomEvent('noblecart:changed'));
 
             if (!data.ok) {
@@ -223,8 +236,7 @@
     }
 
     function showMiniError(msg) {
-        // Gamitin yung existing toast function kung available (galing cartview.php),
-        // kung wala, simpleng inline message lang sa loob ng dropdown
+        // Gamitin yung existing toast function kung available (galing cartview.php)
         if (typeof showToast === 'function') {
             showToast('error', msg);
         } else {
@@ -243,7 +255,7 @@
 
         if (qtyBtn) {
             const cartId = qtyBtn.dataset.cartId;
-            const row = qtyBtn.closest('.cart-mini-row'); // FIX: specific class, hindi generic [data-cart-id]
+            const row = qtyBtn.closest('.cart-mini-row');
             const stock = parseInt(row?.dataset.stock || '0', 10);
             const display = row.querySelector('.mini-qty-display');
             let qty = parseInt(display.textContent, 10) || 1;
@@ -258,23 +270,22 @@
                 qty = Math.max(1, qty - 1);
             }
 
-            display.textContent = qty; // optimistic update, sa-sync din after fetchMiniCart()
+            display.textContent = qty; // optimistic update
             updateQty(cartId, qty);
         }
 
         if (removeBtn) {
-            const cartId = removeBtn.dataset.cartId;
-            removeItem(cartId);
+            removeItem(removeBtn.dataset.cartId);
         }
     });
 
-    // Load badge count agad pag-load ng page (hindi na maghintay ng hover)
-fetchMiniCart();
+    // Load badge count agad pag-load ng page
+    fetchMiniCart();
 
-// Pag hover, kuha ulit ng latest data — dito yung "realtime" feel
-wrapper.addEventListener('mouseenter', fetchMiniCart);
+    // Pag hover, kuha ulit ng latest data
+    if (wrapper) wrapper.addEventListener('mouseenter', fetchMiniCart);
 
-// Pag may nagbago sa cart (add/update/remove galing ibang parte ng page) — i-refresh agad
-window.addEventListener('noblecart:changed', fetchMiniCart);
+    // Pag may nagbago sa cart galing ibang parte ng page
+    window.addEventListener('noblecart:changed', fetchMiniCart);
 })();
 </script>

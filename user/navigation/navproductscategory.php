@@ -1,5 +1,13 @@
 <?php
 // navproductscategory.php
+// "Shop by Category" mega menu (side-tab style, e-commerce pattern).
+// Included inside top.php's category bar. The panel is anchored to the sticky
+// #site-header, so it always sits right below the header kahit lumiit ito on scroll.
+//
+// Layout:  [ Categories (left tabs) ] [ Subcategories ] [ Recommended products ]
+// - Hover/focus a category  -> right side switches to that category
+// - Hover/focus a subcategory -> product cards switch to that subcategory
+// - Fixed height, walang floating preview, kaya wala nang scroll na sumisira sa layout
 
 $categories = [];
 $cat_result = $conn->query("SELECT id, name FROM noblecategory ORDER BY name ASC");
@@ -15,7 +23,7 @@ while ($sub = $sub_result->fetch_assoc()) {
     }
 }
 
-// Pull products WITH price + discount so the preview cards can match the shop grid look
+// Products WITH price + discount
 $prod_result = $conn->query("
     SELECT
         p.id, p.name, p.imageproduct, p.description, ps.subcategory_id,
@@ -42,268 +50,359 @@ while ($prod = $prod_result->fetch_assoc()) {
     unset($cat);
 }
 
+// Categories na may laman lang ang ipapakita
+$menuCats = array_filter($categories, fn($c) => !empty($c['subcategories']));
+$firstCid = array_key_first($menuCats);
+$productsTriggerActive = !empty($isShopActive);
+
+if (!function_exists('nhMenuIsSale')) {
+    function nhMenuIsSale(array $prod): bool
+    {
+        return !empty($prod['max_discount']) && $prod['max_discount'] > 0;
+    }
+}
+
+if (!function_exists('nhMenuProductCard')) {
+    // Server-side product card (escaped). Same price/discount logic as before.
+    function nhMenuProductCard(array $prod): string
+    {
+        $e = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+
+        $min = floatval($prod['min_price'] ?? 0);
+        $max = floatval($prod['max_price'] ?? 0);
+        $isSale = nhMenuIsSale($prod);
+
+        $priceLabel = ($min > 0 || $max > 0)
+            ? '₱' . number_format($min, 2) . ($min !== $max ? ' – ₱' . number_format($max, 2) : '')
+            : '';
+
+        $discLabel = '';
+        $discPct = '';
+        if ($isSale) {
+            $dMin = floatval($prod['min_discounted_price'] ?? 0);
+            $dMax = floatval($prod['max_discounted_price'] ?? 0);
+            $discLabel = '₱' . number_format($dMin, 2) . ($dMin !== $dMax ? ' – ₱' . number_format($dMax, 2) : '');
+            $discPct = rtrim(rtrim(number_format($prod['max_discount'], 2), '0'), '.');
+        }
+
+        $img = !empty($prod['imageproduct']) ? BASE_URL . '/uploads/' . $prod['imageproduct'] : '';
+
+        ob_start(); ?>
+        <a href="<?= BASE_URL ?>/mainproductview/<?= (int) $prod['id'] ?>"
+            class="nh-menu-card block bg-white rounded-lg border border-gray-100 overflow-hidden hover:border-orange-300 hover:shadow-md transition-all duration-150">
+            <div class="relative h-28 bg-gray-50 flex items-center justify-center p-2">
+                <?php if ($isSale): ?>
+                    <span class="absolute top-1.5 left-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">-<?= $e($discPct) ?>%</span>
+                <?php endif; ?>
+                <?php if ($img): ?>
+                    <img src="<?= $e($img) ?>" alt="<?= $e($prod['name']) ?>" loading="lazy"
+                        class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">
+                <?php else: ?>
+                    <i class="fa-regular fa-image text-2xl text-gray-300"></i>
+                <?php endif; ?>
+            </div>
+            <div class="p-2.5">
+                <p class="nh-menu-card-name text-xs font-semibold text-gray-900 leading-snug line-clamp-2 min-h-[2rem]">
+                    <?= $e($prod['name']) ?>
+                </p>
+                <div class="mt-1">
+                    <?php if ($isSale && $discLabel): ?>
+                        <span class="text-xs font-bold text-red-500"><?= $e($discLabel) ?></span>
+                        <span class="block text-[10px] text-gray-400 line-through"><?= $e($priceLabel) ?></span>
+                    <?php elseif ($priceLabel): ?>
+                        <span class="text-xs font-bold text-gray-900"><?= $e($priceLabel) ?></span>
+                    <?php else: ?>
+                        <span class="text-[11px] text-gray-400 italic">Price not set</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </a>
+        <?php
+        return ob_get_clean();
+    }
+}
+
+if (!function_exists('nhMenuProductGrid')) {
+    function nhMenuProductGrid(array $products, string $gridKey, bool $hidden): string
+    {
+        ob_start(); ?>
+        <div data-grid="<?= htmlspecialchars($gridKey, ENT_QUOTES) ?>" class="<?= $hidden ? 'hidden' : '' ?>">
+            <?php if (empty($products)): ?>
+                <div class="h-40 flex flex-col items-center justify-center text-center rounded-lg border border-dashed border-gray-200">
+                    <i class="fa-solid fa-box-open text-xl text-gray-300"></i>
+                    <p class="text-xs text-gray-400 mt-2">No regular-priced items to show.</p>
+                </div>
+            <?php else: ?>
+                <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    <?php foreach ($products as $p) echo nhMenuProductCard($p); ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+}
 ?>
 
-<!-- DESKTOP MEGA DROPDOWN -->
-<div class="relative group" id="desktop-products-dropdown">
+<style>
+    /* Panel height: fixed, pero hindi lalampas sa screen */
+    .nh-mega-body {
+        height: min(440px, calc(100vh - 180px));
+    }
 
-    <!-- Page-level dim: sits BEHIND the white dropdown panel, dims the rest of the site -->
-    <div id="page-dim-backdrop" class="hidden fixed inset-0 top-16 bg-gray-900/40 z-40"></div>
+    .nh-thin-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: #e5e7eb transparent;
+    }
+
+    .nh-thin-scroll::-webkit-scrollbar { width: 6px; }
+    .nh-thin-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 9999px; }
+
+    /* Left category tabs */
+    .nh-cat-item {
+        border-left: 3px solid transparent;
+    }
+
+    .nh-cat-item[data-active="true"] {
+        background: #fff;
+        color: #ea580c;
+        border-left-color: #f97316;
+        font-weight: 600;
+    }
+
+    .nh-cat-item[data-active="true"] .nh-cat-initial {
+        background: #f97316;
+        color: #fff;
+    }
+
+    .nh-cat-item[data-active="true"] .nh-cat-chev {
+        opacity: 1;
+        color: #f97316;
+    }
+
+    /* Subcategory rows */
+    .nh-sub-item[data-active="true"] {
+        background: #fff7ed;
+        color: #ea580c;
+    }
+
+    .nh-sub-item[data-active="true"] .nh-sub-count {
+        background: #f97316;
+        color: #fff;
+    }
+
+    .nh-menu-card:hover .nh-menu-card-name {
+        color: #ea580c;
+    }
+
+    /* Dim the page while the mega menu is open (hover sa trigger o panel) */
+    #site-header:has(#desktop-products-dropdown:hover) #page-dim-backdrop {
+        display: block;
+    }
+</style>
+
+<!-- Page dim: nasa LABAS ng hover group, kaya pag tinamaan ng mouse, sasara ang menu -->
+<div id="page-dim-backdrop" class="hidden absolute left-0 right-0 top-full h-screen bg-gray-900/40 z-40"></div>
+
+<!-- Walang `relative` dito on purpose: ang panel ay naka-anchor sa sticky #site-header -->
+<div class="group h-full flex items-center" id="desktop-products-dropdown">
 
     <a href="<?= BASE_URL ?>/shop"
-        class="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-orange-500 transition-colors duration-150 focus:outline-none">
-        Products
-        <i class="fa-solid fa-caret-down mt-0.5 transition-transform duration-200 group-hover:rotate-180"></i>
+        class="flex items-center gap-2 h-full text-sm font-semibold transition-colors duration-150 focus:outline-none
+               <?= $productsTriggerActive ? 'text-orange-500' : 'text-gray-900 hover:text-orange-500 group-hover:text-orange-500' ?>">
+        <i class="fa-solid fa-bars text-xs"></i>
+        Shop by Category
+        <i class="fa-solid fa-caret-down text-xs transition-transform duration-200 group-hover:rotate-180"></i>
     </a>
 
-    <!-- Full-width panel pinned below navbar -->
-    <div class="fixed left-0 right-0 top-16 bg-white border-t border-gray-200 shadow-xl
+    <!-- Mega panel -->
+    <div class="absolute left-0 right-0 top-full bg-white border-t-2 border-orange-500 shadow-2xl
                 opacity-0 invisible group-hover:opacity-100 group-hover:visible
-                transition-all duration-200 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-6 relative" id="dropdown-inner">
+                transition-all duration-150 z-50">
 
-            <div class="grid gap-8 relative z-40" id="categories-grid"
-                style="grid-template-columns: repeat(<?= min(count($categories), 5) ?>, minmax(140px, 1fr));">
+        <?php if (empty($menuCats)): ?>
+            <div class="max-w-screen-xl mx-auto px-4 py-10 text-center text-sm text-gray-400">
+                No categories yet.
+            </div>
+        <?php else: ?>
+            <div class="nh-mega-body max-w-screen-xl mx-auto flex border-x border-gray-100">
 
-                <?php foreach ($categories as $cid => $cat): ?>
-                    <?php if (empty($cat['subcategories']))
-                        continue; ?>
-                    <div>
-                        <p
-                            class="text-[11px] font-bold uppercase tracking-widest text-gray-600 mb-3 pb-2 border-b border-gray-100">
-                            <?= htmlspecialchars($cat['name']) ?>
-                        </p>
-                        <ul class="space-y-1">
-                            <?php foreach ($cat['subcategories'] as $sid => $sub): ?>
-                                <li>
-                                    <div class="subcategory-row w-full flex items-center justify-between gap-1 rounded-md
-                                                hover:bg-orange-50 transition-colors duration-150">
-                                        <a href="<?= BASE_URL ?>/productcategory?id=<?= $cid ?>&sub=<?= $sid ?>" class="subcategory-link flex-1 text-sm font-medium text-gray-500
-                                                  hover:text-orange-500 py-1.5 px-2 transition-colors duration-150">
-                                            <?= htmlspecialchars($sub['name']) ?>
-                                        </a>
-                                        <?php if (!empty($sub['products'])): ?>
-                                            <button type="button" class="subcategory-btn shrink-0 p-1.5 mr-1 rounded-md text-gray-400
-                                                           hover:text-orange-500 transition-colors duration-150"
-                                                data-target="sub-products-<?= $sid ?>"
-                                                data-subname="<?= htmlspecialchars($sub['name']) ?>" data-catid="<?= $cid ?>"
-                                                data-subid="<?= $sid ?>"
-                                                aria-label="Preview <?= htmlspecialchars($sub['name']) ?> products">
-                                                <i class="fa-solid fa-caret-right"></i>
-                                            </button>
-                                        <?php endif; ?>
+                <!-- LEFT: Category tabs -->
+                <div class="w-60 shrink-0 bg-gray-50 border-r border-gray-100 flex flex-col">
+                    <p class="px-4 pt-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                        All Categories
+                    </p>
+                    <nav class="flex-1 overflow-y-auto nh-thin-scroll pb-2">
+                        <?php foreach ($menuCats as $cid => $cat): ?>
+                            <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $cid ?>"
+                                class="nh-cat-item flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:text-orange-600 transition-colors"
+                                data-cat-item="<?= (int) $cid ?>" data-active="<?= $cid === $firstCid ? 'true' : 'false' ?>">
+                                <span class="nh-cat-initial w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center text-[11px] font-bold text-gray-500 shrink-0 transition-colors">
+                                    <?= htmlspecialchars(mb_strtoupper(mb_substr($cat['name'], 0, 1))) ?>
+                                </span>
+                                <span class="flex-1 truncate"><?= htmlspecialchars(ucwords(mb_strtolower($cat['name']))) ?></span>
+                                <i class="nh-cat-chev fa-solid fa-chevron-right text-[10px] text-gray-300 opacity-0 transition-opacity"></i>
+                            </a>
+                        <?php endforeach; ?>
+                    </nav>
+                    <a href="<?= BASE_URL ?>/shop"
+                        class="flex items-center justify-center gap-2 m-3 py-2 rounded-md bg-gray-900 text-white text-xs font-semibold hover:bg-orange-500 transition-colors">
+                        <i class="fa-solid fa-store"></i> View All Products
+                    </a>
+                </div>
+
+                <!-- RIGHT: one pane per category -->
+                <div class="flex-1 min-w-0">
+                    <?php foreach ($menuCats as $cid => $cat):
+                        // Default grid ng category: first 4 non-sale products across its subcategories
+                        $catProducts = [];
+                        $seen = [];
+                        foreach ($cat['subcategories'] as $sub) {
+                            foreach ($sub['products'] as $p) {
+                                if (nhMenuIsSale($p) || isset($seen[$p['id']])) continue;
+                                $seen[$p['id']] = true;
+                                $catProducts[] = $p;
+                                if (count($catProducts) >= 4) break 2;
+                            }
+                        }
+                        $catNameNice = ucwords(mb_strtolower($cat['name']));
+                        ?>
+                        <div class="nh-cat-pane h-full flex-col <?= $cid === $firstCid ? 'flex' : 'hidden' ?>"
+                            data-cat-pane="<?= (int) $cid ?>">
+
+                            <!-- Pane header -->
+                            <div class="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">Category</p>
+                                    <h3 class="text-base font-extrabold text-gray-900 leading-tight">
+                                        <?= htmlspecialchars($catNameNice) ?>
+                                    </h3>
+                                </div>
+                                <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $cid ?>"
+                                    class="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors">
+                                    Shop all <?= htmlspecialchars($catNameNice) ?> →
+                                </a>
+                            </div>
+
+                            <div class="flex flex-1 min-h-0">
+                                <!-- Subcategories -->
+                                <div class="w-56 shrink-0 border-r border-gray-100 overflow-y-auto nh-thin-scroll p-3">
+                                    <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                        Subcategories
+                                    </p>
+                                    <ul class="space-y-0.5">
+                                        <?php foreach ($cat['subcategories'] as $sid => $sub): ?>
+                                            <li>
+                                                <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $cid ?>&sub=<?= (int) $sid ?>"
+                                                    class="nh-sub-item flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-sm text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                                                    data-sub-item="<?= (int) $sid ?>"
+                                                    data-sub-name="<?= htmlspecialchars(ucwords(mb_strtolower($sub['name']))) ?>">
+                                                    <span class="truncate"><?= htmlspecialchars(ucwords(mb_strtolower($sub['name']))) ?></span>
+                                                    <span class="nh-sub-count shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 transition-colors">
+                                                        <?= count($sub['products']) ?>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+
+                                <!-- Recommended products -->
+                                <div class="flex-1 min-w-0 overflow-y-auto nh-thin-scroll p-5">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                            Recommended <span class="nh-rec-label normal-case tracking-normal text-gray-500 font-semibold"></span>
+                                        </p>
                                     </div>
 
-                                    <!-- Hidden data source only — cloned into the preview panel below -->
-                                    <?php if (!empty($sub['products'])): ?>
-                                        <div id="sub-products-<?= $sid ?>" class="hidden">
-                                            <?php foreach ($sub['products'] as $prod):
-                                                $min = floatval($prod['min_price'] ?? 0);
-                                                $max = floatval($prod['max_price'] ?? 0);
-                                                $isSale = !empty($prod['max_discount']) && $prod['max_discount'] > 0;
+                                    <?= nhMenuProductGrid($catProducts, 'cat', false) ?>
 
-                                                $priceLabel = ($min > 0 || $max > 0)
-                                                    ? '₱' . number_format($min, 2) . ($min !== $max ? ' – ₱' . number_format($max, 2) : '')
-                                                    : '';
-
-                                                $discountedPriceLabel = '';
-                                                $discountPercentLabel = '';
-                                                if ($isSale) {
-                                                    $dMin = floatval($prod['min_discounted_price'] ?? 0);
-                                                    $dMax = floatval($prod['max_discounted_price'] ?? 0);
-                                                    $discountedPriceLabel = '₱' . number_format($dMin, 2) . ($dMin !== $dMax ? ' – ₱' . number_format($dMax, 2) : '');
-                                                    $discountPercentLabel = rtrim(rtrim(number_format($prod['max_discount'], 2), '0'), '.');
-                                                }
-                                                ?>
-                                                <a href="<?= BASE_URL ?>/mainproductview/<?= $prod['id'] ?>"
-                                                    class="preview-product-item" data-name="<?= htmlspecialchars($prod['name']) ?>"
-                                                    data-desc="<?= htmlspecialchars($prod['description'] ?? '') ?>"
-                                                    data-price="<?= htmlspecialchars($priceLabel) ?>"
-                                                    data-sale="<?= $isSale ? '1' : '0' ?>"
-                                                    data-discounted-price="<?= htmlspecialchars($discountedPriceLabel) ?>"
-                                                    data-discount-percent="<?= htmlspecialchars($discountPercentLabel) ?>"
-                                                    data-img="<?= !empty($prod['imageproduct']) ? BASE_URL . '/uploads/' . htmlspecialchars($prod['imageproduct']) : '' ?>">
-                                                </a>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                <?php endforeach; ?>
-
-            </div>
-
-            <!-- SPEECH-BUBBLE PREVIEW: floats above the panel, doesn't push layout down -->
-            <div id="sub-preview-wrap" class="hidden absolute left-0 right-0 z-40">
-                <div id="sub-preview-arrow"
-                    class="absolute -top-2 w-4 h-4 bg-orange-500 border-l border-t border-gray-100 rotate-45 transition-all duration-150">
-                </div>
-                <div id="sub-preview-panel"
-                    class="relative bg-white border border-gray-100 rounded-xl shadow-2xl p-4 flex flex-col">
-                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
-                        <p class="text-[11px] font-bold uppercase tracking-widest text-gray-500">Recommended</p>
-                        <a id="sub-preview-viewall" href="#"
-                            class="text-[11px] font-semibold text-orange-500 hover:text-orange-600 transition-colors duration-150">
-                            View all →
-                        </a>
-                    </div>
-                    <div id="sub-preview-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <!-- product cards injected here -->
-                    </div>
+                                    <?php foreach ($cat['subcategories'] as $sid => $sub):
+                                        $subProducts = array_slice(
+                                            array_values(array_filter($sub['products'], fn($p) => !nhMenuIsSale($p))),
+                                            0,
+                                            4
+                                        );
+                                        echo nhMenuProductGrid($subProducts, 'sub-' . (int) $sid, true);
+                                    endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
-
-            <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span class="text-xs text-gray-400">Browse our full catalog</span>
-                <a href="<?= BASE_URL ?>/shop"
-                    class="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors duration-150">
-                    View All Products →
-                </a>
-            </div>
-        </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <script>
-    const previewWrap = document.getElementById('sub-preview-wrap');
-    const previewArrow = document.getElementById('sub-preview-arrow');
-    const previewPanel = document.getElementById('sub-preview-grid');
-    const previewBackdrop = document.getElementById('page-dim-backdrop');
-    const dropdownInner = document.getElementById('dropdown-inner');
+    (function () {
+        const root = document.getElementById('desktop-products-dropdown');
+        if (!root) return;
 
-    let activeBtn = null;
+        const catItems = root.querySelectorAll('[data-cat-item]');
+        const panes = root.querySelectorAll('[data-cat-pane]');
+        if (!catItems.length) return;
 
-    function renderProductCard(item) {
-        const name = item.dataset.name;
-        const desc = item.dataset.desc;
-        const price = item.dataset.price;
-        const img = item.dataset.img;
-        const href = item.getAttribute('href');
-        const isSale = item.dataset.sale === '1';
-        const discountedPrice = item.dataset.discountedPrice;
-        const discountPercent = item.dataset.discountPercent;
+        const firstCid = catItems[0].dataset.catItem;
+        let hoverTimer = null;
 
-        const card = document.createElement('a');
-        card.href = href;
-        card.className = 'bg-white rounded-xl overflow-hidden border border-gray-100 block hover:shadow-md transition-shadow duration-200 relative';
+        function showGrid(pane, key, label) {
+            pane.querySelectorAll('[data-grid]').forEach(g => {
+                g.classList.toggle('hidden', g.dataset.grid !== key);
+            });
+            const labelEl = pane.querySelector('.nh-rec-label');
+            if (labelEl) labelEl.textContent = label ? '· ' + label : '';
+        }
 
-        const priceHtml = isSale && discountedPrice
-            ? `<div class="flex items-baseline gap-1 flex-wrap">
-                 <span class="text-xs font-semibold text-red-500">${discountedPrice}</span>
-                 <span class="text-[10px] text-gray-400 line-through">${price}</span>
-               </div>`
-            : (price
-                ? `<span class="text-xs font-semibold text-gray-800">${price}</span>`
-                : `<span class="text-[11px] text-gray-400 italic">Price not set</span>`);
+        function resetSubs(pane) {
+            pane.querySelectorAll('[data-sub-item]').forEach(s => s.dataset.active = 'false');
+            showGrid(pane, 'cat', '');
+        }
 
-        card.innerHTML = `
-        ${isSale
-                ? `<span class="absolute top-1.5 left-1.5 z-10 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">-${discountPercent}%</span>`
-                : ''
-            }
-        <div class="h-32 overflow-hidden bg-gray-50 flex items-center justify-center p-2.5">
-            ${img
-                ? `<img src="${img}" alt="${name}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">`
-                : `<svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`
-            }
-        </div>
-        <div class="p-2.5">
-            <h4 class="font-bold text-gray-900 text-xs uppercase tracking-wide leading-snug line-clamp-1">${name}</h4>
-            ${desc ? `<p class="text-[11px] text-gray-400 line-clamp-1 mt-0.5">${desc}</p>` : ''}
-            <div class="mt-1.5">
-                ${priceHtml}
-            </div>
-        </div>
-    `;
-        return card;
-    }
-
-    function positionPreview(btn) {
-        const btnRect = btn.getBoundingClientRect();
-        const wrapRect = dropdownInner.getBoundingClientRect();
-        const arrowSize = 16; // matches w-4/h-4
-        const gap = 10; // distance between button row and the tip of the arrow
-
-        // vertical: sit just under the row this button lives in
-        const top = (btnRect.bottom - wrapRect.top) + gap;
-        previewWrap.style.top = top + 'px';
-
-        // horizontal: center the arrow on the button
-        let arrowLeft = (btnRect.left - wrapRect.left) + (btnRect.width / 2) - (arrowSize / 2);
-        arrowLeft = Math.max(8, Math.min(arrowLeft, wrapRect.width - arrowSize - 8));
-        previewArrow.style.left = arrowLeft + 'px';
-    }
-
-    function openPreview(btn) {
-        const target = document.getElementById(btn.dataset.target);
-        if (!target) return;
-
-        // reset previous active state
-        document.querySelectorAll('.subcategory-row').forEach(r => {
-            r.classList.remove('bg-orange-50');
-            r.querySelector('.subcategory-link')?.classList.remove('text-orange-500');
-        });
-        const row = btn.closest('.subcategory-row');
-        row?.classList.add('bg-orange-50');
-        row?.querySelector('.subcategory-link')?.classList.add('text-orange-500');
-
-        previewPanel.innerHTML = '';
-        const items = target.querySelectorAll('.preview-product-item');
-        // Recommended = non-sale items lang, para hiwalay sa discounted-items carousel
-        const nonSaleItems = Array.from(items).filter(item => item.dataset.sale !== '1');
-        if (nonSaleItems.length === 0) {
-            previewPanel.innerHTML = `<p class="col-span-full text-xs text-gray-400 italic py-4 text-center">No regular-priced items to show.</p>`;
-        } else {
-            nonSaleItems.slice(0, 4).forEach(item => {
-                previewPanel.appendChild(renderProductCard(item));
+        function activateCat(cid) {
+            catItems.forEach(i => i.dataset.active = String(i.dataset.catItem === cid));
+            panes.forEach(p => {
+                const on = p.dataset.catPane === cid;
+                p.classList.toggle('hidden', !on);
+                p.classList.toggle('flex', on);
+                if (on) resetSubs(p);
             });
         }
-        const viewAllLink = document.getElementById('sub-preview-viewall');
-        if (viewAllLink && btn.dataset.catid && btn.dataset.subid) {
-            viewAllLink.href = '<?= BASE_URL ?>/productcategory?id=' + btn.dataset.catid + '&sub=' + btn.dataset.subid;
-        }
 
-        previewWrap.classList.remove('hidden');
-        previewBackdrop.classList.remove('hidden');
-        positionPreview(btn);
-        activeBtn = btn;
-    }
-
-    function closePreview() {
-        previewWrap.classList.add('hidden');
-        previewBackdrop.classList.add('hidden');
-        document.querySelectorAll('.subcategory-row').forEach(r => {
-            r.classList.remove('bg-orange-50');
-            r.querySelector('.subcategory-link')?.classList.remove('text-orange-500');
+        // Category tabs — maliit na delay (hover intent) para hindi magpalit-palit
+        // ang category habang pa-diagonal ang galaw ng mouse papunta sa kanan.
+        catItems.forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                clearTimeout(hoverTimer);
+                hoverTimer = setTimeout(() => activateCat(item.dataset.catItem), 90);
+            });
+            item.addEventListener('mouseleave', () => clearTimeout(hoverTimer));
+            item.addEventListener('focus', () => activateCat(item.dataset.catItem));
         });
-        activeBtn = null;
-    }
 
-    document.querySelectorAll('.subcategory-btn').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (!this.dataset.target || !document.getElementById(this.dataset.target)) return;
-            if (activeBtn === this) {
-                closePreview();
-            } else {
-                openPreview(this);
-            }
+        // Subcategory hover — palitan ang product cards
+        panes.forEach(pane => {
+            pane.querySelectorAll('[data-sub-item]').forEach(sub => {
+                const activate = () => {
+                    pane.querySelectorAll('[data-sub-item]').forEach(s => s.dataset.active = String(s === sub));
+                    showGrid(pane, 'sub-' + sub.dataset.subItem, sub.dataset.subName);
+                };
+                sub.addEventListener('mouseenter', activate);
+                sub.addEventListener('focus', activate);
+            });
         });
-    });
 
-    // keep panel aligned if window resizes while open
-    window.addEventListener('resize', () => {
-        if (activeBtn) positionPreview(activeBtn);
-    });
+        // Pag sumara ang menu, balik sa unang category para fresh sa susunod na bukas
+        root.addEventListener('mouseleave', () => {
+            clearTimeout(hoverTimer);
+            setTimeout(() => {
+                if (!root.matches(':hover')) activateCat(firstCid);
+            }, 200);
+        });
+    })();
 
-    // close preview whenever the whole mega menu closes (mouse leaves)
-    document.getElementById('desktop-products-dropdown')?.addEventListener('mouseleave', closePreview);
-
-    // close preview when clicking the dim backdrop
-    previewBackdrop?.addEventListener('click', closePreview);
-
+    // ---- Mobile toggles (kept for pages that render mobile product menus) ----
     document.querySelectorAll('.mobile-sub-toggle').forEach(btn => {
         btn.addEventListener('click', function () {
             const target = document.getElementById(this.dataset.target);
@@ -314,13 +413,15 @@ while ($prod = $prod_result->fetch_assoc()) {
         });
     });
 
-    const mobileProductsToggle = document.getElementById('mobile-products-toggle');
-    const mobileProductsMenu = document.getElementById('mobile-products-menu');
-    const mobileProductsChevron = document.getElementById('products-chevron');
-    if (mobileProductsToggle) {
-        mobileProductsToggle.addEventListener('click', () => {
-            mobileProductsMenu?.classList.toggle('hidden');
-            mobileProductsChevron?.classList.toggle('rotate-180');
-        });
-    }
+    (function () {
+        const toggle = document.getElementById('mobile-products-toggle');
+        const menu = document.getElementById('mobile-products-menu');
+        const chevron = document.getElementById('products-chevron');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                menu?.classList.toggle('hidden');
+                chevron?.classList.toggle('rotate-180');
+            });
+        }
+    })();
 </script>

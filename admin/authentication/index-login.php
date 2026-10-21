@@ -3,8 +3,76 @@
 
 include ROOT_PATH . '/network/connect.php';
 
+/**
+ * Ibinabalik ang dashboard route ng isang role/position.
+ * Returns NULL kapag walang naka-assign na page — HINDI na babalik sa login
+ * page (iyon ang dahilan ng "too many redirects" loop dati).
+ */
+function getDashboardRoute(string $role, string $position): ?string
+{
+    $role = strtoupper(trim($role));
+    $position = strtolower(trim($position));
+
+    switch ($role) {
+        case 'ACCOUNTING AND FINANCE DEPARTMENT':
+            return match ($position) {
+                'staff'          => 'accountantstaff',
+                'custodian'      => 'accountantcustodian',
+                'custoassistant' => 'accountingcustodianassistant',
+                default          => 'accounting',
+            };
+
+        case 'SALES AND MARKETING DEPARTMENT':
+            return match ($position) {
+                'head'  => 'saleshead',
+                default => 'sales',
+            };
+
+        case 'LOGISTIC DEPARTMENT':
+            return match ($position) {
+                'logisticstaff'      => 'logisticstaff',
+                'logisticdispatcher' => 'logisticdispatcher',
+                default              => 'logisticmain',
+            };
+
+        case 'WAREHOUSE DEPARTMENT':
+            return match ($position) {
+                'warehousestaff'    => 'warehousestaff',
+                'warehousereceiver' => 'warehousereceiver',
+                default             => 'warehousemain',
+            };
+    }
+
+    $roleRoutes = [
+        'SUPER ADMIN'                              => 'superadmin',
+        'IT DEPARTMENT'                            => 'it',
+        'HUMAN RESOURCES DEPARTMENT'               => 'hr-main',
+        'OPERATIONS DEPARTMENT'                    => 'operation',
+        'GRAPHIC DESIGN DEPARTMENT'                => 'graphicdesign',
+        'DESIGN DEPARTMENT'                        => 'designer',
+        'ORDER PROCESSING/CUTTING LIST DEPARTMENT' => 'cuttinglist',
+        'PRODUCT SPECIALIST'                       => 'ps-main',
+        // TODO: idagdag dito ang ibang roles (hal. Purchase Order, Project Coordinator)
+        // gamit ang EKSAKTONG role string na naka-save sa noblerole.role
+    ];
+
+    return $roleRoutes[$role] ?? null;
+}
+
+function clearLoginSession(): void
+{
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+    }
+    session_destroy();
+    session_start(); // fresh, empty session para gumana pa rin ang page
+}
+
 $error = '';
 
+// ---------- LOGIN SUBMIT ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -17,115 +85,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $conn->prepare("SELECT * FROM noblerole WHERE email = ? LIMIT 1");
         $stmt->bind_param("s", $email);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $account = $result->fetch_assoc();
+        $account = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         if ($account && password_verify($password, $account['password'])) {
-            $_SESSION['account_id'] = $account['id'];
-            $_SESSION['username'] = $account['name'];
-            $_SESSION['email'] = $account['email'];
-            $_SESSION['role'] = $account['role'];
-            $_SESSION['position'] = $account['position'];
-            $_SESSION['logged_in'] = true;
+            $route = getDashboardRoute($account['role'] ?? '', $account['position'] ?? '');
 
-            $position = $account['position'] ?? '';
-            $role = $account['role'];
-
-            if ($role === 'ACCOUNTING AND FINANCE DEPARTMENT') {
-                $route = match ($position) {
-                    'head'                         => 'accounting',
-                    'staff'                        => 'accountantstaff',
-                    'custodian'                    => 'accountantcustodian',
-                    'custoassistant'               => 'accountingcustodianassistant',
-                    default                        => 'accounting',
-                };
+            if ($route === null) {
+                // Tama ang password pero walang page ang role — huwag mag-login, huwag mag-redirect
+                $error = 'Your account role ("' . ($account['role'] ?? '') . '") has no assigned page yet. Please contact IT.';
             } else {
-                $roleRoutes = [
-                    'SUPER ADMIN' => 'superadmin',
-                    'IT DEPARTMENT' => 'it',
-                    'HUMAN RESOURCES DEPARTMENT' => 'hr-main',
-                    'OPERATIONS DEPARTMENT' => 'operation',
-                    'SALES AND MARKETING DEPARTMENT' => match ($position) {
-                        'head'                         => 'saleshead',
-                        'salesstaff'                   => 'sales',
-                        default                        => 'sales',
-                    },
-                    'GRAPHIC DESIGN DEPARTMENT' => 'graphicdesign',
-                    'DESIGN DEPARTMENT' => 'designer',
-                    'ORDER PROCESSING/CUTTING LIST DEPARTMENT' => 'cuttinglist',
-                    'PRODUCT SPECIALIST' => 'ps-main',
-                    'LOGISTIC DEPARTMENT' => match ($position) {
-                        'head'                         => 'logisticmain',
-                        'logisticstaff'                => 'logisticstaff',
-                        'logisticdispatcher'           => 'logisticdispatcher',
-                        default                        => 'logisticmain',
-                    },
-                    'WAREHOUSE DEPARTMENT' => match ($position) {
-                        'head'                         => 'warehousemain',
-                        'warehousestaff'               => 'warehousestaff',
-                        'warehousereceiver'            => 'warehousereceiver',
-                        default                        => 'warehousemain',
-                    },
-                ];
-                $route = $roleRoutes[$role] ?? 'loginadmin';
+                session_regenerate_id(true);
+                $_SESSION['account_id'] = $account['id'];
+                $_SESSION['username'] = $account['name'];
+                $_SESSION['email'] = $account['email'];
+                $_SESSION['role'] = $account['role'];
+                $_SESSION['position'] = $account['position'];
+                $_SESSION['logged_in'] = true;
+
+                header('Location: ' . BASE_URL . '/' . $route);
+                exit;
             }
-
-            header('Location: ' . BASE_URL . '/' . $route);
-            exit;
-
         } else {
             $error = 'Invalid email or password.';
         }
     }
 }
 
-// Already logged in — redirect sa tamang page
+// ---------- ALREADY LOGGED IN ----------
 if (!empty($_SESSION['logged_in'])) {
-    $position = $_SESSION['position'] ?? '';
-    $role = $_SESSION['role'] ?? '';
+    $route = getDashboardRoute($_SESSION['role'] ?? '', $_SESSION['position'] ?? '');
 
-    if ($role === 'ACCOUNTING AND FINANCE DEPARTMENT') {
-        $route = match ($position) {
-            'head' => 'accounting',
-            'staff' => 'accountantstaff',
-            'custodian' => 'accountantcustodian',
-            'custoassistant' => 'accountingcustodianassistant',
-            default => 'accounting',
-        };
-    } else {
-        $roleRoutes = [
-            'SUPER ADMIN' => 'superadmin',
-            'IT DEPARTMENT' => 'it',
-            'HUMAN RESOURCES DEPARTMENT' => 'hr-main',
-            'OPERATIONS DEPARTMENT' => 'operation',
-            'SALES AND MARKETING DEPARTMENT' => match ($position) {
-                'head'             => 'saleshead',
-                'salesstaff'       => 'sales',
-                default            => 'sales',
-            },
-            'GRAPHIC DESIGN DEPARTMENT' => 'graphicdesign',
-            'DESIGN DEPARTMENT' => 'designer',
-            'ORDER PROCESSING/CUTTING LIST DEPARTMENT' => 'cuttinglist',
-            'PRODUCT SPECIALIST' => 'ps-main',
-            'LOGISTIC DEPARTMENT' => match ($position) {
-                'head'                         => 'logisticmain',
-                'logisticstaff'                => 'logisticstaff',
-                'logisticdispatcher'           => 'logisticdispatcher',
-                default                        => 'logisticmain',
-            },
-            'WAREHOUSE DEPARTMENT' => match ($position) {
-                'head'                         => 'warehousemain',
-                'warehousestaff'               => 'warehousestaff',
-                'warehousereceiver'            => 'warehousereceiver',
-                default                        => 'warehousemain',
-            },
-        ];
-        $route = $roleRoutes[$role] ?? 'loginadmin';
+    if ($route !== null) {
+        header('Location: ' . BASE_URL . '/' . $route);
+        exit;
     }
 
-    header('Location: ' . BASE_URL . '/' . $route);
-    exit;
+    // Walang valid na route — i-clear ang session at ipakita ang login form
+    // (dati dito nagre-redirect pabalik sa sarili = infinite loop)
+    clearLoginSession();
+    $error = $error ?: 'Your session has no assigned page. Please sign in again or contact IT.';
 }
 ?>
 
@@ -150,10 +149,10 @@ if (!empty($_SESSION['logged_in'])) {
         <!-- Brand -->
         <div class="flex items-center justify-center gap-4 mb-8">
             <div class="flex items-center justify-center w-14 h-14 rounded-lg shrink-0">
-                <img src="<?= BASE_URL ?>/icon/logo.png" class="object-contain bg-white rounded-md p-1" alt="error">
+                <img src="<?= BASE_URL ?>/icon/logo.png" class="object-contain bg-white rounded-md p-1" alt="NobleHome Logo">
             </div>
             <div class="w-px h-12 bg-white"></div>
-            <div class="">
+            <div>
                 <h1 class="text-xl font-bold tracking-wide text-white uppercase leading-tight">
                     Noble<span class="text-yellow-500">Home</span> Accounting
                 </h1>

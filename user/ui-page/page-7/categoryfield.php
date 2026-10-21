@@ -25,15 +25,27 @@ if (!$category) {
     exit;
 }
 
-// ── 3. Fetch subcategories under this category ──────────────────────────────
+// ── 3. Fetch subcategories (with product counts) ────────────────────────────
 $subcategories = [];
-$stmt = $conn->prepare("SELECT id, name, image FROM noblesubcategory WHERE category_id = ? ORDER BY name ASC");
+$stmt = $conn->prepare("
+    SELECT s.id, s.name, s.image, COUNT(DISTINCT ps.product_id) AS product_count
+    FROM noblesubcategory s
+    LEFT JOIN nobleproduct_subcategory ps ON ps.subcategory_id = s.id
+    WHERE s.category_id = ?
+    GROUP BY s.id, s.name, s.image
+    ORDER BY s.name ASC
+");
 $stmt->bind_param("i", $categoryId);
 $stmt->execute();
 $subResult = $stmt->get_result();
 while ($row = $subResult->fetch_assoc())
     $subcategories[] = $row;
 $stmt->close();
+
+$activeSubName = '';
+foreach ($subcategories as $sub) {
+    if ((int) $sub['id'] === $activeSubId) $activeSubName = $sub['name'];
+}
 
 // ── 4. Filter & sort inputs ──────────────────────────────────────────────────
 $sortOptions = [
@@ -51,9 +63,10 @@ $maxPrice = (isset($_GET['maxp']) && $_GET['maxp'] !== '') ? floatval($_GET['max
 $saleOnly = isset($_GET['sale']) && $_GET['sale'] === '1';
 
 $hasActiveFilters = $minPrice !== null || $maxPrice !== null || $sort !== 'newest' || $saleOnly;
+$activeFilterCount = ($minPrice !== null || $maxPrice !== null ? 1 : 0) + ($saleOnly ? 1 : 0) + ($activeSubId ? 1 : 0);
 
 // ── 4b. Pagination inputs ────────────────────────────────────────────────────
-$perPage = 8;
+$perPage = 12;
 $currentPage = intval($_GET['page'] ?? 1);
 if ($currentPage < 1)
     $currentPage = 1;
@@ -61,12 +74,16 @@ $offset = ($currentPage - 1) * $perPage;
 
 // ── 5. Build the shared filtered/grouped query (reused for count + page) ────
 $baseSql = "SELECT
-            p.id, p.name, p.imageproduct, p.description, p.created_at,
+            p.id, p.name, p.imageproduct, p.description, p.unit, p.created_at,
             MIN(v.pricesize) AS min_price,
             MAX(v.pricesize) AS max_price,
             MAX(v.discountvariant) AS max_discount,
             MIN(v.pricesize - (v.pricesize * v.discountvariant / 100)) AS min_discounted_price,
-            MAX(v.pricesize - (v.pricesize * v.discountvariant / 100)) AS max_discounted_price
+            MAX(v.pricesize - (v.pricesize * v.discountvariant / 100)) AS max_discounted_price,
+            (SELECT AVG(r.rating) FROM noblereview r WHERE r.product_id = p.id) AS avg_rating,
+            (SELECT COUNT(*) FROM noblereview r WHERE r.product_id = p.id) AS review_count,
+            (SELECT COALESCE(SUM(v2.sold), 0) FROM nobleproductvariant v2
+                JOIN nobleproductcolor c2 ON c2.id = v2.color_id WHERE c2.product_id = p.id) AS total_sold
         FROM nobleproduct p
         INNER JOIN nobleproduct_subcategory ps ON ps.product_id = p.id";
 
@@ -100,7 +117,7 @@ if ($saleOnly) {
 if ($having)
     $baseSql .= " HAVING " . implode(" AND ", $having);
 
-// ── 5a. Total count for pagination (wrap grouped query, count rows) ─────────
+// ── 5a. Total count for pagination ──────────────────────────────────────────
 $totalProducts = 0;
 $countSql = "SELECT COUNT(*) AS total FROM ($baseSql) AS filtered";
 $stmt = $conn->prepare($countSql);
@@ -117,7 +134,6 @@ $offset = ($currentPage - 1) * $perPage;
 
 // ── 5b. Fetch products for the current page ──────────────────────────────────
 $products = [];
-
 $sql = $baseSql . " ORDER BY " . $sortOptions[$sort] . " LIMIT ? OFFSET ?";
 $pageTypes = $types . "ii";
 $pageParams = array_merge($params, [$perPage, $offset]);
@@ -130,34 +146,49 @@ while ($row = $prodResult->fetch_assoc())
     $products[] = $row;
 $stmt->close();
 
+$showingFrom = $totalProducts ? $offset + 1 : 0;
+$showingTo = min($offset + $perPage, $totalProducts);
+
 // ── Helper: rebuild query string while overriding specific params ──────────
-function buildUrl(array $overrides = [], bool $resetPage = true): string
-{
-    $base = [
-        'id' => $_GET['id'] ?? '',
-        'sub' => $_GET['sub'] ?? '',
-        'sort' => $_GET['sort'] ?? '',
-        'minp' => $_GET['minp'] ?? '',
-        'maxp' => $_GET['maxp'] ?? '',
-        'sale' => $_GET['sale'] ?? '',
-        'page' => $_GET['page'] ?? '',
-    ];
-    $merged = array_merge($base, $overrides);
-    // Any change to filters/sub/sort/price should reset pagination back to page 1,
-    // unless the override is explicitly setting the page itself.
-    if ($resetPage && !array_key_exists('page', $overrides)) {
-        $merged['page'] = '';
+if (!function_exists('buildUrl')) {
+    function buildUrl(array $overrides = [], bool $resetPage = true): string
+    {
+        $base = [
+            'id' => $_GET['id'] ?? '',
+            'sub' => $_GET['sub'] ?? '',
+            'sort' => $_GET['sort'] ?? '',
+            'minp' => $_GET['minp'] ?? '',
+            'maxp' => $_GET['maxp'] ?? '',
+            'sale' => $_GET['sale'] ?? '',
+            'page' => $_GET['page'] ?? '',
+        ];
+        $merged = array_merge($base, $overrides);
+        if ($resetPage && !array_key_exists('page', $overrides)) {
+            $merged['page'] = '';
+        }
+        $merged = array_filter($merged, fn($v) => $v !== '' && $v !== null);
+        return BASE_URL . '/productcategory?' . http_build_query($merged);
     }
-    $merged = array_filter($merged, fn($v) => $v !== '' && $v !== null);
-    return BASE_URL . '/productcategory?' . http_build_query($merged);
+}
+
+if (!function_exists('nhNiceName')) {
+    function nhNiceName(string $name): string
+    {
+        $name = mb_strtolower(trim($name));
+        $name = preg_replace('/(?<=[a-z])(fixtures?|materials?|supplies|accessories)$/u', ' $1', $name);
+        return ucwords($name);
+    }
 }
 
 $sortLabels = [
     'newest' => 'Newest',
     'price_asc' => 'Price: Low to High',
     'price_desc' => 'Price: High to Low',
-    'name_asc' => 'Name: A-Z',
+    'name_asc' => 'Name: A–Z',
 ];
+
+$categoryName = nhNiceName($category['name']);
+$pageTitle = $activeSubName ? nhNiceName($activeSubName) : $categoryName;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -165,442 +196,408 @@ $sortLabels = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($category['name']) ?> - NobleHome</title>
+    <title><?= htmlspecialchars($pageTitle) ?> — NobleHome</title>
     <?php include ROOT_PATH . '/link/top.php'; ?>
+    <style>
+        .nh-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
 </head>
 
 <body class="bg-gray-50 min-h-screen flex flex-col">
 
     <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
 
-    <div class="max-w-7xl mx-auto px-3 py-5 pb-20 md:pb-5">
+    <main class="max-w-screen-xl mx-auto px-3 md:px-4 py-4 md:py-6 pb-24 md:pb-10 flex-1 w-full">
 
-        <!-- Breadcrumb -->
-        <nav class="flex items-center gap-1.5 text-xs text-gray-400 mb-5 overflow-x-auto whitespace-nowrap">
-            <a href="<?= BASE_URL ?>" class="hover:text-amber-600 transition-colors">Home</a>
-            <i class="fa-solid fa-chevron-right text-[9px]"></i>
-            <span class="text-gray-600 font-medium"><?= htmlspecialchars($category['name']) ?></span>
-            <?php if ($activeSubId):
-                foreach ($subcategories as $sub):
-                    if ((int) $sub['id'] === $activeSubId): ?>
-                        <i class="fa-solid fa-chevron-right text-[9px]"></i>
-                        <span class="text-amber-600 font-medium"><?= htmlspecialchars($sub['name']) ?></span>
-                    <?php endif; endforeach; endif; ?>
-        </nav>
-
-        <!-- Category Header -->
-        <div class="flex items-center gap-4 mb-7">
-            <div
-                class="w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-amber-400 flex items-center justify-center overflow-hidden bg-white p-2 shrink-0 shadow-sm">
-                <?php if (!empty($category['image'])): ?>
-                    <img src="<?= BASE_URL . '/' . htmlspecialchars($category['image']) ?>"
-                        alt="<?= htmlspecialchars($category['name']) ?>" class="w-full h-full object-contain"
-                        loading="lazy">
+        <!-- ================= PAGE HEADER ================= -->
+        <header class="mb-6 pb-5 border-b border-gray-200">
+            <nav class="flex items-center gap-1.5 text-xs md:text-sm text-gray-500 overflow-x-auto whitespace-nowrap" aria-label="Breadcrumb">
+                <a href="<?= BASE_URL ?>" class="hover:text-gray-900 transition-colors">Home</a>
+                <span class="text-gray-300">/</span>
+                <a href="<?= BASE_URL ?>/shop" class="hover:text-gray-900 transition-colors">Shop</a>
+                <span class="text-gray-300">/</span>
+                <?php if ($activeSubId): ?>
+                    <a href="<?= buildUrl(['sub' => '']) ?>" class="hover:text-gray-900 transition-colors"><?= htmlspecialchars($categoryName) ?></a>
+                    <span class="text-gray-300">/</span>
+                    <span class="text-gray-900"><?= htmlspecialchars(nhNiceName($activeSubName)) ?></span>
                 <?php else: ?>
-                    <i class="fa-solid fa-layer-group text-xl text-gray-300"></i>
+                    <span class="text-gray-900"><?= htmlspecialchars($categoryName) ?></span>
                 <?php endif; ?>
-            </div>
-            <div>
-                <p class="text-[11px] text-amber-600 font-semibold uppercase tracking-widest">Category</p>
-                <h1 class="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
-                    <?= htmlspecialchars($category['name']) ?></h1>
-            </div>
-        </div>
+            </nav>
 
-        <!-- Subcategory boxes with image -->
+            <div class="flex items-end justify-between gap-4 mt-3">
+                <div>
+                    <h1 class="text-2xl md:text-[32px] font-bold tracking-tight text-gray-900 leading-tight"><?= htmlspecialchars($pageTitle) ?></h1>
+                    <p class="text-sm text-gray-500 mt-1">
+                        <?= number_format($totalProducts) ?> <?= $totalProducts === 1 ? 'product' : 'products' ?>
+                        <?php if ($activeSubId): ?> in <?= htmlspecialchars($categoryName) ?><?php endif; ?>
+                    </p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Mobile: subcategory pills (sa desktop, nasa sidebar) -->
         <?php if (!empty($subcategories)): ?>
-            <div
-                class="flex flex-nowrap md:flex-wrap gap-3 mb-8 overflow-x-auto md:overflow-visible -mx-3 px-3 md:mx-0 md:px-0 scrollbar-hide">
-
-                <!-- "All" box -->
+            <div class="lg:hidden flex gap-2 overflow-x-auto pb-3 mb-3 -mx-3 px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <a href="<?= buildUrl(['sub' => '']) ?>"
-                    class="flex flex-col items-center gap-2 w-16 sm:w-20 md:w-24 shrink-0 group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl border-2 flex items-center justify-center
-                            overflow-hidden bg-white transition-all duration-200
-                            <?= !$activeSubId
-                                ? 'border-amber-500 shadow-md ring-2 ring-amber-100'
-                                : 'border-gray-200 group-hover:border-amber-300' ?>">
-                        <i
-                            class="fa-solid fa-grip text-lg sm:text-xl md:text-2xl <?= !$activeSubId ? 'text-amber-500' : 'text-gray-300' ?>"></i>
-                    </div>
-                    <span class="text-[10px] sm:text-[11px] md:text-xs font-semibold text-center uppercase tracking-wide leading-tight
-                             <?= !$activeSubId ? 'text-amber-600' : 'text-gray-600' ?>">
-                        All
-                    </span>
+                    class="shrink-0 h-9 px-4 inline-flex items-center rounded-full border text-sm font-medium
+                           <?= !$activeSubId ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700' ?>">
+                    All
                 </a>
-
-                <!-- Per subcategory box -->
-                <?php foreach ($subcategories as $sub): ?>
-                    <?php $isActive = $activeSubId === (int) $sub['id']; ?>
+                <?php foreach ($subcategories as $sub): $on = $activeSubId === (int) $sub['id']; ?>
                     <a href="<?= buildUrl(['sub' => $sub['id']]) ?>"
-                        class="flex flex-col items-center gap-2 w-16 sm:w-20 md:w-24 shrink-0 group">
-                        <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl border-2 flex items-center justify-center
-                                overflow-hidden bg-white p-2 transition-all duration-200
-                                <?= $isActive
-                                    ? 'border-amber-500 shadow-md ring-2 ring-amber-100'
-                                    : 'border-gray-200 group-hover:border-amber-300' ?>">
-                            <?php if (!empty($sub['image'])): ?>
-                                <img src="<?= BASE_URL . '/' . htmlspecialchars($sub['image']) ?>"
-                                    alt="<?= htmlspecialchars($sub['name']) ?>" class="w-full h-full object-contain" loading="lazy">
-                            <?php else: ?>
-                                <i
-                                    class="fa-solid fa-image text-lg sm:text-xl md:text-2xl <?= $isActive ? 'text-amber-500' : 'text-gray-300' ?>"></i>
-                            <?php endif; ?>
-                        </div>
-                        <span class="text-[10px] sm:text-[11px] md:text-xs font-semibold text-center uppercase tracking-wide leading-tight
-                                 <?= $isActive ? 'text-amber-600' : 'text-gray-600' ?>">
-                            <?= htmlspecialchars($sub['name']) ?>
-                        </span>
+                        class="shrink-0 h-9 px-4 inline-flex items-center rounded-full border text-sm font-medium whitespace-nowrap
+                               <?= $on ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700' ?>">
+                        <?= htmlspecialchars(nhNiceName($sub['name'])) ?>
                     </a>
                 <?php endforeach; ?>
-
             </div>
         <?php endif; ?>
 
-        <!-- Filter / Sort Toolbar -->
-        <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 pb-4 border-b border-gray-200">
-            <p class="text-sm text-gray-500">
-                <?= number_format($totalProducts) ?> <?= $totalProducts === 1 ? 'Product' : 'Products' ?>
-                <?php if ($activeSubId):
-                    foreach ($subcategories as $sub):
-                        if ((int) $sub['id'] === $activeSubId): ?>
-                            in <span class="font-medium text-gray-700"> <?= htmlspecialchars($sub['name']) ?></span>
-                        <?php endif; endforeach; endif; ?>
-            </p>
+        <div class="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-6 items-start">
 
-            <div class="flex items-center gap-2">
-                <!-- Sale toggle -->
-                <a href="<?= buildUrl(['sale' => $saleOnly ? '' : '1']) ?>"
-                    class="flex items-center justify-center gap-1.5 text-sm font-medium rounded-lg px-3.5 py-2.5 sm:py-2 border transition-colors
-                           <?= $saleOnly
-                               ? 'bg-red-500 border-red-500 text-white hover:bg-red-600'
-                               : 'bg-white border-gray-200 text-gray-700 hover:border-red-300' ?>">
-                    <i class="fa-solid fa-tag text-xs <?= $saleOnly ? 'text-white' : 'text-red-400' ?>"></i>
-                    Sale
-                </a>
+            <!-- ================= FILTER SIDEBAR (desktop) / BOTTOM SHEET (mobile) ================= -->
+            <div id="filterBackdrop" class="hidden fixed inset-0 bg-gray-900/40 z-[55] lg:hidden"></div>
 
-                <!-- Price filter -->
-                <div class="relative flex-1 sm:flex-none">
-                    <button type="button" id="priceFilterBtn"
-                        class="flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3.5 py-2.5 sm:py-2 w-full sm:w-auto hover:border-amber-400 transition-colors">
-                        <i class="fa-solid fa-sliders text-xs text-gray-400"></i>
-                        Price
-                        <?php if ($minPrice !== null || $maxPrice !== null): ?>
-                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        <?php endif; ?>
+            <aside id="filterPanel"
+                class="fixed inset-x-0 bottom-0 z-[60] max-h-[85vh] overflow-y-auto bg-white rounded-t-xl
+                       translate-y-full invisible transition-transform duration-300
+                       lg:z-auto lg:max-h-none lg:overflow-visible lg:translate-y-0 lg:visible
+                       lg:rounded-lg lg:border lg:border-gray-200 lg:sticky lg:top-36"
+                aria-label="Filters">
+
+                <!-- Mobile sheet header -->
+                <div class="lg:hidden sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                    <p class="text-base font-semibold text-gray-900">Filters</p>
+                    <button type="button" id="filterCloseBtn" aria-label="Close filters"
+                        class="w-9 h-9 flex items-center justify-center rounded-md hover:bg-gray-100">
+                        <i class="fa-solid fa-xmark text-gray-600"></i>
                     </button>
-
-                    <!-- Backdrop (mobile only, closes panel on tap outside) -->
-                    <div id="priceFilterBackdrop" class="hidden fixed inset-0 bg-black/30 z-30 sm:hidden"></div>
-
-                    <!-- Panel: bottom sheet on mobile, dropdown on desktop -->
-                    <div id="priceFilterPanel" class="hidden fixed inset-x-0 bottom-0 z-40 rounded-t-2xl
-            sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:rounded-xl
-            w-full sm:w-72 max-w-full sm:max-w-none
-            bg-white border-t sm:border border-gray-100 shadow-lg sm:shadow-lg p-4 sm:p-4 pb-6 sm:pb-4">
-                        <div class="flex items-center justify-between mb-2 sm:hidden">
-                            <p class="text-sm font-semibold text-gray-700">Filter by Price</p>
-                            <button type="button" id="priceFilterCloseBtn"
-                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100">
-                                <i class="fa-solid fa-xmark text-sm text-gray-500"></i>
-                            </button>
-                        </div>
-                        <form method="GET" action="<?= BASE_URL ?>/productcategory" class="space-y-3">
-                            <input type="hidden" name="id" value="<?= $categoryId ?>">
-                            <?php if ($activeSubId): ?><input type="hidden" name="sub"
-                                    value="<?= $activeSubId ?>"><?php endif; ?>
-                            <?php if ($sort !== 'newest'): ?><input type="hidden" name="sort"
-                                    value="<?= htmlspecialchars($sort) ?>"><?php endif; ?>
-                            <?php if ($saleOnly): ?><input type="hidden" name="sale" value="1"><?php endif; ?>
-
-                            <p class="hidden sm:block text-xs font-semibold text-gray-500 uppercase tracking-wide">Price
-                                range</p>
-                            <div class="flex items-center gap-2">
-                                <div class="relative flex-1">
-                                    <span
-                                        class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
-                                    <input type="number" name="minp" min="0" placeholder="Min"
-                                        value="<?= $minPrice !== null ? htmlspecialchars($minPrice) : '' ?>"
-                                        class="w-full pl-6 pr-2 py-2 sm:py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100">
-                                </div>
-                                <span class="text-gray-300 text-sm">–</span>
-                                <div class="relative flex-1">
-                                    <span
-                                        class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
-                                    <input type="number" name="maxp" min="0" placeholder="Max"
-                                        value="<?= $maxPrice !== null ? htmlspecialchars($maxPrice) : '' ?>"
-                                        class="w-full pl-6 pr-2 py-2 sm:py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100">
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-2 pt-1">
-                                <button type="submit"
-                                    class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold py-2.5 sm:py-2 rounded-md transition-colors">
-                                    Apply
-                                </button>
-                                <a href="<?= buildUrl(['minp' => '', 'maxp' => '']) ?>"
-                                    class="text-xs font-medium text-gray-400 hover:text-gray-600 px-2">
-                                    Reset
-                                </a>
-                            </div>
-                        </form>
-                    </div>
                 </div>
 
-                <!-- Sort -->
-                <form method="GET" action="<?= BASE_URL ?>/productcategory" class="relative flex-1 sm:flex-none">
-                    <input type="hidden" name="id" value="<?= $categoryId ?>">
-                    <?php if ($activeSubId): ?><input type="hidden" name="sub"
-                            value="<?= $activeSubId ?>"><?php endif; ?>
-                    <?php if ($minPrice !== null): ?><input type="hidden" name="minp"
-                            value="<?= htmlspecialchars($minPrice) ?>"><?php endif; ?>
-                    <?php if ($maxPrice !== null): ?><input type="hidden" name="maxp"
-                            value="<?= htmlspecialchars($maxPrice) ?>"><?php endif; ?>
-                    <?php if ($saleOnly): ?><input type="hidden" name="sale" value="1"><?php endif; ?>
-                    <select name="sort" onchange="this.form.submit()"
-                        class="appearance-none text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg pl-3.5 pr-8 py-2.5 sm:py-2 w-full sm:w-auto hover:border-amber-400 transition-colors cursor-pointer focus:outline-none focus:border-amber-400">
-                        <?php foreach ($sortLabels as $key => $label): ?>
-                            <option value="<?= $key ?>" <?= $sort === $key ? 'selected' : '' ?>><?= $label ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <i
-                        class="fa-solid fa-chevron-down text-[10px] text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-                </form>
-            </div>
-        </div>
-
-        <!-- Active filter chips -->
-        <?php if ($hasActiveFilters): ?>
-            <div class="flex flex-wrap items-center gap-2 mb-6">
-                <?php if ($saleOnly): ?>
-                    <span
-                        class="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-full pl-3 pr-1.5 py-1">
-                        On Sale
-                        <a href="<?= buildUrl(['sale' => '']) ?>"
-                            class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-red-200 transition-colors">
-                            <i class="fa-solid fa-xmark text-[9px]"></i>
-                        </a>
-                    </span>
+                <!-- Category / subcategories -->
+                <?php if (!empty($subcategories)): ?>
+                    <div class="px-4 py-4 border-b border-gray-200">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Category</p>
+                        <ul class="space-y-0.5 text-sm">
+                            <li>
+                                <a href="<?= buildUrl(['sub' => '']) ?>"
+                                    class="flex items-center justify-between px-2 py-1.5 rounded-md
+                                           <?= !$activeSubId ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700 hover:bg-gray-50' ?>">
+                                    All <?= htmlspecialchars($categoryName) ?>
+                                </a>
+                            </li>
+                            <?php foreach ($subcategories as $sub): $on = $activeSubId === (int) $sub['id']; ?>
+                                <li>
+                                    <a href="<?= buildUrl(['sub' => $sub['id']]) ?>"
+                                        class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md
+                                               <?= $on ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700 hover:bg-gray-50' ?>">
+                                        <span class="truncate"><?= htmlspecialchars(nhNiceName($sub['name'])) ?></span>
+                                        <span class="text-xs text-gray-400 shrink-0"><?= (int) $sub['product_count'] ?></span>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
                 <?php endif; ?>
-                <?php if ($minPrice !== null || $maxPrice !== null): ?>
-                    <span
-                        class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full pl-3 pr-1.5 py-1">
-                        ₱<?= number_format($minPrice ?? 0, 0) ?> –
-                        <?= $maxPrice !== null ? '₱' . number_format($maxPrice, 0) : 'and up' ?>
-                        <a href="<?= buildUrl(['minp' => '', 'maxp' => '']) ?>"
-                            class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-amber-200 transition-colors">
-                            <i class="fa-solid fa-xmark text-[9px]"></i>
-                        </a>
-                    </span>
-                <?php endif; ?>
-                <?php if ($sort !== 'newest'): ?>
-                    <span
-                        class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full pl-3 pr-1.5 py-1">
-                        <?= $sortLabels[$sort] ?>
-                        <a href="<?= buildUrl(['sort' => '']) ?>"
-                            class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-amber-200 transition-colors">
-                            <i class="fa-solid fa-xmark text-[9px]"></i>
-                        </a>
-                    </span>
-                <?php endif; ?>
-                <a href="<?= buildUrl(['sort' => '', 'minp' => '', 'maxp' => '', 'sale' => '']) ?>"
-                    class="text-xs font-medium text-gray-400 hover:text-gray-600 underline underline-offset-2">
-                    Clear all
-                </a>
-            </div>
-        <?php endif; ?>
 
-        <!-- Product Grid -->
-        <?php if (empty($products)): ?>
-            <div class="text-center py-20 text-gray-400">
-                <i class="fa-solid fa-box-open text-5xl mb-4 block"></i>
-                <p class="text-lg text-gray-500 font-medium">No products found</p>
-                <p class="text-sm mt-1">Try adjusting your filters or select "All".</p>
-                <?php if ($hasActiveFilters || $activeSubId): ?>
-                    <a href="<?= buildUrl(['sub' => '', 'sort' => '', 'minp' => '', 'maxp' => '', 'sale' => '']) ?>"
-                        class="inline-block mt-4 text-sm font-semibold text-amber-600 hover:text-amber-700">
-                        Clear filters <i class="fa-solid fa-arrow-right text-xs ml-1"></i>
-                    </a>
-                <?php endif; ?>
-            </div>
-        <?php else: ?>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
-                <?php foreach ($products as $p): ?>
-                    <?php $isNew = !empty($p['created_at']) && (strtotime($p['created_at']) >= strtotime('-14 days')); ?>
-                    <?php $isSale = !empty($p['max_discount']) && $p['max_discount'] > 0; ?>
-                    <a href="<?= BASE_URL ?>/mainproductview?id=<?= $p['id'] ?>"
-                        class="group bg-white rounded-xl md:rounded-2xl overflow-hidden border border-gray-100
-                          block hover:shadow-lg hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-300 relative">
+                <!-- Price -->
+                <div class="px-4 py-4 border-b border-gray-200">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Price</p>
+                    <form method="GET" action="<?= BASE_URL ?>/productcategory" class="space-y-3">
+                        <input type="hidden" name="id" value="<?= $categoryId ?>">
+                        <?php if ($activeSubId): ?><input type="hidden" name="sub" value="<?= $activeSubId ?>"><?php endif; ?>
+                        <?php if ($sort !== 'newest'): ?><input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>"><?php endif; ?>
+                        <?php if ($saleOnly): ?><input type="hidden" name="sale" value="1"><?php endif; ?>
 
-                        <?php if ($isSale): ?>
-                            <span
-                                class="absolute top-2 left-2 z-10 bg-red-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full shadow-sm">
-                                -<?= rtrim(rtrim(number_format($p['max_discount'], 2), '0'), '.') ?>%
-                            </span>
-                        <?php elseif ($isNew): ?>
-                            <span
-                                class="absolute top-2 left-2 z-10 bg-amber-500 text-white text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full shadow-sm">
-                                New
-                            </span>
-                        <?php endif; ?>
-
-                        <div class="aspect-square overflow-hidden bg-gray-50 flex items-center justify-center p-2 md:p-4">
-                            <?php if (!empty($p['imageproduct'])): ?>
-                                <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
-                                    alt="<?= htmlspecialchars($p['name']) ?>"
-                                    class="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105">
-                            <?php else: ?>
-                                <div class="w-full h-full flex items-center justify-center text-gray-300">
-                                    <i class="fa-solid fa-image text-3xl md:text-5xl"></i>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="p-2.5 md:p-3.5">
-                            <h3
-                                class="font-bold text-gray-900 text-xs md:text-sm uppercase tracking-wide leading-snug mb-0.5 md:mb-1 line-clamp-1">
-                                <?= htmlspecialchars($p['name']) ?>
-                            </h3>
-
-                            <?php if (!empty($p['description'])): ?>
-                                <p class="text-xs text-gray-400 line-clamp-1 md:line-clamp-2 mb-1 md:mb-2 hidden sm:block">
-                                    <?= htmlspecialchars($p['description']) ?>
-                                </p>
-                            <?php endif; ?>
-
-                            <div class="mt-1 md:mt-2 flex items-baseline gap-1.5 flex-wrap">
-                                <?php
-                                $min = floatval($p['min_price'] ?? 0);
-                                $max = floatval($p['max_price'] ?? 0);
-                                ?>
-                                <?php if ($isSale): ?>
-                                    <span class="text-[10px] md:text-sm font-semibold text-red-500">
-                                        ₱<?= number_format($p['min_discounted_price'], 2) ?>
-                                        <?= $p['min_discounted_price'] !== $p['max_discounted_price']
-                                            ? ' – ₱' . number_format($p['max_discounted_price'], 2)
-                                            : '' ?>
-                                    </span>
-                                    <span class="text-[9px] md:text-xs text-gray-400 line-through">
-                                        ₱<?= number_format($min, 2) ?><?= $min !== $max ? ' – ₱' . number_format($max, 2) : '' ?>
-                                    </span>
-                                <?php elseif ($min > 0 || $max > 0): ?>
-                                    <span class="text-[10px] md:text-sm font-semibold text-gray-900">
-                                        ₱<?= number_format($min, 2) ?>
-                                        <?= $min !== $max ? ' – ₱' . number_format($max, 2) : '' ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="text-[10px] md:text-xs text-gray-400 italic">Price not set</span>
-                                <?php endif; ?>
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                                <input type="number" name="minp" min="0" placeholder="Min" aria-label="Minimum price"
+                                    value="<?= $minPrice !== null ? htmlspecialchars($minPrice) : '' ?>"
+                                    class="w-full h-10 pl-6 pr-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-gray-900">
+                            </div>
+                            <span class="text-gray-400 text-sm">–</span>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                                <input type="number" name="maxp" min="0" placeholder="Max" aria-label="Maximum price"
+                                    value="<?= $maxPrice !== null ? htmlspecialchars($maxPrice) : '' ?>"
+                                    class="w-full h-10 pl-6 pr-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-gray-900">
                             </div>
                         </div>
+                        <div class="flex items-center gap-2">
+                            <button type="submit"
+                                class="flex-1 h-10 rounded-md bg-gray-900 hover:bg-black text-white text-sm font-semibold transition-colors">
+                                Apply
+                            </button>
+                            <?php if ($minPrice !== null || $maxPrice !== null): ?>
+                                <a href="<?= buildUrl(['minp' => '', 'maxp' => '']) ?>"
+                                    class="h-10 px-3 inline-flex items-center text-sm text-gray-600 hover:text-gray-900">Reset</a>
+                            <?php endif; ?>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Offers -->
+                <div class="px-4 py-4">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Offers</p>
+                    <a href="<?= buildUrl(['sale' => $saleOnly ? '' : '1']) ?>"
+                        class="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+                        <span class="w-4 h-4 rounded-sm border flex items-center justify-center shrink-0
+                                     <?= $saleOnly ? 'bg-gray-900 border-gray-900' : 'border-gray-400 bg-white' ?>">
+                            <?php if ($saleOnly): ?><i class="fa-solid fa-check text-[9px] text-white"></i><?php endif; ?>
+                        </span>
+                        On sale only
                     </a>
-                <?php endforeach; ?>
-            </div>
+                </div>
 
-            <!-- Pagination -->
-            <?php if ($totalPages > 1): ?>
-                <?php
-                // Build a compact page-number window: first, last, current ±1, with ellipses
-                $windowStart = max(1, $currentPage - 1);
-                $windowEnd = min($totalPages, $currentPage + 1);
-                ?>
-                <nav class="mt-8 md:mt-10 flex items-center justify-center gap-1 sm:gap-1.5" aria-label="Pagination">
-
-                    <!-- Prev -->
-                    <a href="<?= $currentPage > 1 ? buildUrl(['page' => $currentPage - 1], false) : '#' ?>" class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border text-sm
-                          <?= $currentPage > 1
-                              ? 'border-gray-200 text-gray-600 bg-white hover:border-amber-400 hover:text-amber-600 transition-colors'
-                              : 'border-gray-100 text-gray-300 pointer-events-none' ?>" <?= $currentPage <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
-                        <i class="fa-solid fa-chevron-left text-xs"></i>
-                    </a>
-
-                    <!-- First page + leading ellipsis -->
-                    <?php if ($windowStart > 1): ?>
-                        <a href="<?= buildUrl(['page' => 1], false) ?>"
-                            class="w-9 h-9 sm:w-10 sm:h-10 hidden sm:flex items-center justify-center rounded-lg border border-gray-200 text-sm text-gray-600 bg-white hover:border-amber-400 hover:text-amber-600 transition-colors">1</a>
-                        <?php if ($windowStart > 2): ?>
-                            <span
-                                class="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 items-center justify-center text-gray-300 text-sm">…</span>
-                        <?php endif; ?>
-                    <?php endif; ?>
-
-                    <!-- Page window -->
-                    <?php for ($i = $windowStart; $i <= $windowEnd; $i++): ?>
-                        <?php $isCurrent = $i === $currentPage; ?>
-                        <a href="<?= buildUrl(['page' => $i], false) ?>"
-                            class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border text-sm font-medium transition-colors
-                              <?= $isCurrent
-                                  ? 'border-amber-500 bg-amber-500 text-white'
-                                  : 'border-gray-200 text-gray-600 bg-white hover:border-amber-400 hover:text-amber-600' ?>" <?= $isCurrent ? 'aria-current="page"' : '' ?>>
-                            <?= $i ?>
+                <?php if ($hasActiveFilters || $activeSubId): ?>
+                    <div class="px-4 pb-4">
+                        <a href="<?= buildUrl(['sub' => '', 'sort' => '', 'minp' => '', 'maxp' => '', 'sale' => '']) ?>"
+                            class="block text-center h-10 leading-10 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            Clear all filters
                         </a>
-                    <?php endfor; ?>
+                    </div>
+                <?php endif; ?>
+            </aside>
 
-                    <!-- Trailing ellipsis + last page -->
-                    <?php if ($windowEnd < $totalPages): ?>
-                        <?php if ($windowEnd < $totalPages - 1): ?>
-                            <span
-                                class="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 items-center justify-center text-gray-300 text-sm">…</span>
+            <!-- ================= RESULTS ================= -->
+            <section class="min-w-0">
+
+                <!-- Toolbar -->
+                <div class="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-3 md:px-4 py-2.5 mb-4">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <button type="button" id="filterOpenBtn"
+                            class="lg:hidden inline-flex items-center gap-2 h-9 px-3 rounded-md border border-gray-300 text-sm font-medium text-gray-800">
+                            <i class="fa-solid fa-sliders text-xs"></i> Filters
+                            <?php if ($activeFilterCount): ?>
+                                <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center">
+                                    <?= $activeFilterCount ?>
+                                </span>
+                            <?php endif; ?>
+                        </button>
+                        <p class="hidden sm:block text-sm text-gray-600 truncate">
+                            <?php if ($totalProducts): ?>
+                                Showing <span class="font-semibold text-gray-900"><?= $showingFrom ?>–<?= $showingTo ?></span>
+                                of <span class="font-semibold text-gray-900"><?= number_format($totalProducts) ?></span>
+                            <?php else: ?>
+                                No results
+                            <?php endif; ?>
+                        </p>
+                    </div>
+
+                    <form method="GET" action="<?= BASE_URL ?>/productcategory" class="flex items-center gap-2 shrink-0">
+                        <input type="hidden" name="id" value="<?= $categoryId ?>">
+                        <?php if ($activeSubId): ?><input type="hidden" name="sub" value="<?= $activeSubId ?>"><?php endif; ?>
+                        <?php if ($minPrice !== null): ?><input type="hidden" name="minp" value="<?= htmlspecialchars($minPrice) ?>"><?php endif; ?>
+                        <?php if ($maxPrice !== null): ?><input type="hidden" name="maxp" value="<?= htmlspecialchars($maxPrice) ?>"><?php endif; ?>
+                        <?php if ($saleOnly): ?><input type="hidden" name="sale" value="1"><?php endif; ?>
+                        <label for="sortSelect" class="hidden sm:block text-sm text-gray-500">Sort by</label>
+                        <div class="relative">
+                            <select id="sortSelect" name="sort" onchange="this.form.submit()"
+                                class="appearance-none h-9 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-md pl-3 pr-8 cursor-pointer focus:outline-none focus:border-gray-900">
+                                <?php foreach ($sortLabels as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= $sort === $key ? 'selected' : '' ?>><?= $label ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <i class="fa-solid fa-chevron-down text-[10px] text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Active filter chips -->
+                <?php if ($hasActiveFilters): ?>
+                    <div class="flex flex-wrap items-center gap-2 mb-4">
+                        <?php if ($saleOnly): ?>
+                            <a href="<?= buildUrl(['sale' => '']) ?>"
+                                class="inline-flex items-center gap-2 h-8 px-3 rounded-full bg-white border border-gray-300 text-xs font-medium text-gray-800 hover:border-gray-900">
+                                On sale <i class="fa-solid fa-xmark text-[10px] text-gray-500"></i>
+                            </a>
                         <?php endif; ?>
-                        <a href="<?= buildUrl(['page' => $totalPages], false) ?>"
-                            class="w-9 h-9 sm:w-10 sm:h-10 hidden sm:flex items-center justify-center rounded-lg border border-gray-200 text-sm text-gray-600 bg-white hover:border-amber-400 hover:text-amber-600 transition-colors"><?= $totalPages ?></a>
+                        <?php if ($minPrice !== null || $maxPrice !== null): ?>
+                            <a href="<?= buildUrl(['minp' => '', 'maxp' => '']) ?>"
+                                class="inline-flex items-center gap-2 h-8 px-3 rounded-full bg-white border border-gray-300 text-xs font-medium text-gray-800 hover:border-gray-900">
+                                ₱<?= number_format($minPrice ?? 0, 0) ?> – <?= $maxPrice !== null ? '₱' . number_format($maxPrice, 0) : 'and up' ?>
+                                <i class="fa-solid fa-xmark text-[10px] text-gray-500"></i>
+                            </a>
+                        <?php endif; ?>
+                        <?php if ($sort !== 'newest'): ?>
+                            <a href="<?= buildUrl(['sort' => '']) ?>"
+                                class="inline-flex items-center gap-2 h-8 px-3 rounded-full bg-white border border-gray-300 text-xs font-medium text-gray-800 hover:border-gray-900">
+                                <?= $sortLabels[$sort] ?> <i class="fa-solid fa-xmark text-[10px] text-gray-500"></i>
+                            </a>
+                        <?php endif; ?>
+                        <a href="<?= buildUrl(['sort' => '', 'minp' => '', 'maxp' => '', 'sale' => '']) ?>"
+                            class="text-xs font-medium text-gray-600 hover:text-gray-900 underline underline-offset-2 ml-1">
+                            Clear all
+                        </a>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Product grid -->
+                <?php if (empty($products)): ?>
+                    <div class="bg-white border border-gray-200 rounded-lg text-center py-16 px-4">
+                        <i class="fa-solid fa-box-open text-4xl text-gray-300"></i>
+                        <p class="text-base font-semibold text-gray-900 mt-3">No products found</p>
+                        <p class="text-sm text-gray-500 mt-1">Try adjusting your filters or browse all <?= htmlspecialchars($categoryName) ?>.</p>
+                        <?php if ($hasActiveFilters || $activeSubId): ?>
+                            <a href="<?= buildUrl(['sub' => '', 'sort' => '', 'minp' => '', 'maxp' => '', 'sale' => '']) ?>"
+                                class="inline-flex items-center h-10 px-5 mt-5 rounded-md bg-gray-900 hover:bg-black text-white text-sm font-semibold">
+                                Clear filters
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                <?php else: ?>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-7 md:gap-x-4">
+                        <?php foreach ($products as $p):
+                            $isNew = !empty($p['created_at']) && (strtotime($p['created_at']) >= strtotime('-14 days'));
+                            $isSale = !empty($p['max_discount']) && $p['max_discount'] > 0;
+                            $min = floatval($p['min_price'] ?? 0);
+                            $max = floatval($p['max_price'] ?? 0);
+                            $dMin = floatval($p['min_discounted_price'] ?? 0);
+                            $dMax = floatval($p['max_discounted_price'] ?? 0);
+                            $rc = (int) ($p['review_count'] ?? 0);
+                            $sold = (int) ($p['total_sold'] ?? 0);
+                            ?>
+                            <a href="<?= BASE_URL ?>/mainproductview?id=<?= (int) $p['id'] ?>"
+                                aria-label="View details for <?= htmlspecialchars($p['name']) ?>"
+                                class="group flex flex-col">
+
+                                <!-- Image: puno ang tile (kapareho ng Most Popular) -->
+                                <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                                    <?php if (!empty($p['imageproduct'])): ?>
+                                        <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
+                                            alt="<?= htmlspecialchars($p['name']) ?>" loading="lazy"
+                                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                    <?php else: ?>
+                                        <div class="w-full h-full flex items-center justify-center">
+                                            <i class="fa-regular fa-image text-3xl md:text-4xl text-gray-300"></i>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($isSale): ?>
+                                        <span class="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm">
+                                            -<?= rtrim(rtrim(number_format($p['max_discount'], 2), '0'), '.') ?>%
+                                        </span>
+                                    <?php elseif ($isNew): ?>
+                                        <span class="absolute top-2 left-2 z-10 bg-emerald-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm">
+                                            NEW
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Info -->
+                                <div class="flex-1 flex flex-col pt-2.5 px-0.5">
+                                    <h3 class="nh-clamp-2 text-xs md:text-sm font-medium text-gray-800 leading-snug group-hover:text-orange-600 transition-colors">
+                                        <?= htmlspecialchars($p['name']) ?>
+                                    </h3>
+
+                                    <?php if ($rc > 0 || $sold > 0): ?>
+                                        <div class="flex items-center gap-1.5 mt-1 text-[10px] md:text-xs text-gray-400">
+                                            <?php if ($rc > 0): ?>
+                                                <i class="fa-solid fa-star text-amber-400"></i>
+                                                <span class="font-semibold text-gray-700"><?= number_format((float) $p['avg_rating'], 1) ?></span>
+                                                <span>(<?= $rc ?>)</span>
+                                            <?php endif; ?>
+                                            <?php if ($rc > 0 && $sold > 0): ?><span class="text-gray-300">|</span><?php endif; ?>
+                                            <?php if ($sold > 0): ?><span><?= number_format($sold) ?> sold</span><?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <div class="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+                                        <?php if ($isSale): ?>
+                                            <?php if ($dMin !== $dMax): ?><span class="text-[10px] md:text-xs text-gray-400">From</span><?php endif; ?>
+                                            <span class="text-sm md:text-base font-bold text-red-600">₱<?= number_format($dMin, 2) ?></span>
+                                            <span class="text-[10px] md:text-xs text-gray-400 line-through">₱<?= number_format($min, 2) ?></span>
+                                        <?php elseif ($min > 0 || $max > 0): ?>
+                                            <?php if ($min !== $max): ?><span class="text-[10px] md:text-xs text-gray-400">From</span><?php endif; ?>
+                                            <span class="text-sm md:text-base font-bold text-gray-900">₱<?= number_format($min, 2) ?></span>
+                                        <?php else: ?>
+                                            <span class="text-[11px] md:text-xs text-gray-400">Price not set</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- Pagination -->
+                    <?php if ($totalPages > 1):
+                        $windowStart = max(1, $currentPage - 1);
+                        $windowEnd = min($totalPages, $currentPage + 1);
+                        $pgBase = 'h-10 min-w-[40px] px-3 inline-flex items-center justify-center rounded-md border text-sm transition-colors';
+                        $pgIdle = 'border-gray-300 bg-white text-gray-700 hover:border-gray-900';
+                        ?>
+                        <nav class="mt-10 flex items-center justify-center gap-1.5" aria-label="Pagination">
+                            <a href="<?= $currentPage > 1 ? buildUrl(['page' => $currentPage - 1], false) : '#' ?>"
+                                class="<?= $pgBase ?> <?= $currentPage > 1 ? $pgIdle : 'border-gray-200 text-gray-300 bg-white pointer-events-none' ?>"
+                                <?= $currentPage <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
+                                <i class="fa-solid fa-chevron-left text-xs"></i><span class="hidden sm:inline ml-2">Prev</span>
+                            </a>
+
+                            <?php if ($windowStart > 1): ?>
+                                <a href="<?= buildUrl(['page' => 1], false) ?>" class="hidden sm:inline-flex <?= $pgBase ?> <?= $pgIdle ?>">1</a>
+                                <?php if ($windowStart > 2): ?><span class="hidden sm:inline px-1 text-gray-400">…</span><?php endif; ?>
+                            <?php endif; ?>
+
+                            <?php for ($i = $windowStart; $i <= $windowEnd; $i++): $isCurrent = $i === $currentPage; ?>
+                                <a href="<?= buildUrl(['page' => $i], false) ?>"
+                                    class="hidden sm:inline-flex <?= $pgBase ?> <?= $isCurrent ? 'border-gray-900 bg-gray-900 text-white font-semibold' : $pgIdle ?>"
+                                    <?= $isCurrent ? 'aria-current="page"' : '' ?>><?= $i ?></a>
+                            <?php endfor; ?>
+
+                            <?php if ($windowEnd < $totalPages): ?>
+                                <?php if ($windowEnd < $totalPages - 1): ?><span class="hidden sm:inline px-1 text-gray-400">…</span><?php endif; ?>
+                                <a href="<?= buildUrl(['page' => $totalPages], false) ?>" class="hidden sm:inline-flex <?= $pgBase ?> <?= $pgIdle ?>"><?= $totalPages ?></a>
+                            <?php endif; ?>
+
+                            <span class="sm:hidden px-3 text-sm text-gray-600">Page <?= $currentPage ?> of <?= $totalPages ?></span>
+
+                            <a href="<?= $currentPage < $totalPages ? buildUrl(['page' => $currentPage + 1], false) : '#' ?>"
+                                class="<?= $pgBase ?> <?= $currentPage < $totalPages ? $pgIdle : 'border-gray-200 text-gray-300 bg-white pointer-events-none' ?>"
+                                <?= $currentPage >= $totalPages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
+                                <span class="hidden sm:inline mr-2">Next</span><i class="fa-solid fa-chevron-right text-xs"></i>
+                            </a>
+                        </nav>
                     <?php endif; ?>
-
-                    <!-- Mobile: simple "x of y" indicator -->
-                    <span class="sm:hidden flex items-center px-2 text-xs font-medium text-gray-500 whitespace-nowrap">
-                        <?= $currentPage ?> / <?= $totalPages ?>
-                    </span>
-
-                    <!-- Next -->
-                    <a href="<?= $currentPage < $totalPages ? buildUrl(['page' => $currentPage + 1], false) : '#' ?>" class="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border text-sm
-                          <?= $currentPage < $totalPages
-                              ? 'border-gray-200 text-gray-600 bg-white hover:border-amber-400 hover:text-amber-600 transition-colors'
-                              : 'border-gray-100 text-gray-300 pointer-events-none' ?>" <?= $currentPage >= $totalPages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
-                        <i class="fa-solid fa-chevron-right text-xs"></i>
-                    </a>
-                </nav>
-            <?php endif; ?>
-        <?php endif; ?>
-
-    </div>
+                <?php endif; ?>
+            </section>
+        </div>
+    </main>
 
     <?php include ROOT_PATH . '/user/navigation/bottom.php'; ?>
 
     <script>
+        // Mobile filter bottom sheet (sa desktop, laging nakikita ang sidebar)
         (function () {
-            const btn = document.getElementById('priceFilterBtn');
-            const panel = document.getElementById('priceFilterPanel');
-            const backdrop = document.getElementById('priceFilterBackdrop');
-            const closeBtn = document.getElementById('priceFilterCloseBtn');
-            if (!btn || !panel) return;
+            const panel = document.getElementById('filterPanel');
+            const backdrop = document.getElementById('filterBackdrop');
+            const openBtn = document.getElementById('filterOpenBtn');
+            const closeBtn = document.getElementById('filterCloseBtn');
+            if (!panel || !openBtn) return;
 
-            function openPanel() {
-                panel.classList.remove('hidden');
-                if (backdrop) backdrop.classList.remove('hidden');
+            function open() {
+                panel.classList.remove('translate-y-full', 'invisible');
+                backdrop?.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
             }
-            function closePanel() {
-                panel.classList.add('hidden');
-                if (backdrop) backdrop.classList.add('hidden');
+            function close() {
+                panel.classList.add('translate-y-full');
+                backdrop?.classList.add('hidden');
+                document.body.style.overflow = '';
+                setTimeout(() => { if (panel.classList.contains('translate-y-full')) panel.classList.add('invisible'); }, 300);
             }
 
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                panel.classList.contains('hidden') ? openPanel() : closePanel();
-            });
-
-            if (closeBtn) closeBtn.addEventListener('click', closePanel);
-            if (backdrop) backdrop.addEventListener('click', closePanel);
-
-            document.addEventListener('click', function (e) {
-                if (window.innerWidth >= 640 && !panel.contains(e.target) && e.target !== btn) {
-                    closePanel();
-                }
-            });
-
-            window.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') closePanel();
-            });
+            openBtn.addEventListener('click', open);
+            closeBtn?.addEventListener('click', close);
+            backdrop?.addEventListener('click', close);
+            window.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+            window.addEventListener('resize', () => { if (window.innerWidth >= 1024) close(); });
         })();
     </script>
 

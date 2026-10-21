@@ -1,6 +1,9 @@
 <?php
 // new-arrivals.php
-// Expects $conn and $uploadUrl from the including page (page.php)
+// Expects $conn from the including page (page.php)
+// Same card style as most-popularproduct.php (walang box, punong larawan)
+
+$uploadUrl = $uploadUrl ?? BASE_URL . '/uploads/';
 
 $newArrivals = [];
 $newResult = $conn->query("
@@ -29,155 +32,126 @@ while ($row = $newResult->fetch_assoc())
 ?>
 
 <?php if (!empty($newArrivals)): ?>
-    <div class="mb-4 md:mb-8 mt-8">
-        <div class="flex items-center gap-4">
-            <h2 class="text-xs md:text-lg font-bold text-gray-900 whitespace-nowrap">
-                NEW <span class="text-emerald-500">ARRIVALS</span>
-            </h2>
-            <span class="h-px w-16 md:w-32 bg-linear-to-r from-emerald-300 to-transparent"></span>
+    <div class="mb-8 md:mb-10">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-2.5">
+                <span class="w-1.5 h-5 bg-orange-500 rounded-sm"></span>
+                <h2 class="text-base md:text-lg font-extrabold text-gray-900">New Arrivals</h2>
+                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider
+                             text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <i class="fa-solid fa-bolt"></i> Just in
+                </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="newArrivalPrev" onclick="newArrivalSlide(-1)" aria-label="Previous"
+                    class="hidden md:flex w-8 h-8 rounded-full border border-gray-200 bg-white items-center justify-center
+                           text-gray-600 hover:border-orange-400 hover:text-orange-500 disabled:opacity-30
+                           disabled:pointer-events-none transition-colors">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <button type="button" id="newArrivalNext" onclick="newArrivalSlide(1)" aria-label="Next"
+                    class="hidden md:flex w-8 h-8 rounded-full border border-gray-200 bg-white items-center justify-center
+                           text-gray-600 hover:border-orange-400 hover:text-orange-500 disabled:opacity-30
+                           disabled:pointer-events-none transition-colors">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+                <a href="<?= BASE_URL ?>/shop"
+                    class="ml-1 text-xs md:text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
+                    View all →
+                </a>
+            </div>
         </div>
-    </div>
 
-    <div class="relative">
+        <!-- Track -->
+        <div id="newArrivalTrack" class="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory py-1 -mx-1 px-1
+                    [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <?php foreach ($newArrivals as $p):
+                $min = floatval($p['min_price'] ?? 0);
+                $max = floatval($p['max_price'] ?? 0);
+                ?>
+                <a href="<?= BASE_URL ?>/mainproductview?id=<?= (int) $p['id'] ?>"
+                    aria-label="View details for <?= htmlspecialchars($p['name']) ?>"
+                    class="group shrink-0 snap-start flex flex-col
+                          w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(20%-9.6px)]">
 
-        <!-- Left arrow (desktop only; mobile uses native touch scroll) -->
-        <button id="newArrivalPrev" onclick="newArrivalSlide(-1)" class="hidden md:flex absolute -left-2 md:-left-4 top-1/2 -translate-y-1/2 z-10
-       w-7 h-7 md:w-9 md:h-9 rounded-full bg-white border border-gray-200 shadow
-       items-center justify-center text-gray-600
-       hover:bg-gray-50 transition-colors duration-200">
-            <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-        </button>
+                    <!-- Image -->
+                    <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                        <?php if (!empty($p['imageproduct'])): ?>
+                            <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
+                                alt="<?= htmlspecialchars($p['name']) ?>" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                        <?php else: ?>
+                            <div class="w-full h-full flex items-center justify-center">
+                                <i class="fa-regular fa-image text-3xl md:text-4xl text-gray-300"></i>
+                            </div>
+                        <?php endif; ?>
 
-        <!-- Right arrow (desktop only) -->
-        <button id="newArrivalNext" onclick="newArrivalSlide(1)" class="hidden md:flex absolute -right-2 md:-right-4 top-1/2 -translate-y-1/2 z-10
-       w-7 h-7 md:w-9 md:h-9 rounded-full bg-white border border-gray-200 shadow
-       items-center justify-center text-gray-600
-       hover:bg-gray-50 transition-colors duration-200">
-            <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-        </button>
-
-        <!-- Track: native horizontal scroll + snap. Fast/native feel on touch, JS-assisted arrows on desktop -->
-        <div class="overflow-hidden px-1 p-2">
-            <div id="newArrivalTrack" class="flex gap-2 md:gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory
-                       [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden p-1">
-                <?php foreach ($newArrivals as $p): ?>
-                    <a href="<?= BASE_URL ?>/mainproductview?id=<?= $p['id'] ?>" class=" rounded-xl md:rounded-2xl overflow-hidden 
-                      block hover:shadow-lg transition-shadow duration-300 shrink-0 relative snap-start
-                      w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] lg:w-[calc(25%-9px)]">
-
-                        <!-- New badge -->
-                        <span
-                            class="absolute top-2 left-2 z-10 bg-emerald-500 text-white text-[10px] md:text-xs font-bold px-1.5 py-0.5 rounded-md shadow">
+                        <span class="absolute top-2 left-2 z-10 bg-emerald-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm">
                             NEW
                         </span>
+                    </div>
 
-                        <!-- Image -->
-                        <div class="aspect-square overflow-hidden bg-gray-50 flex items-center justify-center p-2 md:p-4">
-                            <?php if (!empty($p['imageproduct'])): ?>
-                                <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
-                                    alt="<?= htmlspecialchars($p['name']) ?>" class="w-full h-full object-contain" loading="lazy">
-                            <?php else: ?>
-                                <div class="w-full h-full flex items-center justify-center text-gray-300">
-                                    <i class="fa-solid fa-image text-3xl md:text-5xl"></i>
-                                </div>
-                            <?php endif; ?>
-                        </div>
+                    <!-- Info -->
+                    <div class="flex-1 flex flex-col pt-2.5 px-0.5">
+                        <h3 class="text-xs md:text-sm font-medium text-gray-800 leading-snug line-clamp-2
+                                   group-hover:text-orange-600 transition-colors">
+                            <?= htmlspecialchars($p['name']) ?>
+                        </h3>
 
-                        <!-- Info -->
-                        <div class="p-2 md:p-3">
-                            <h3
-                                class="font-bold text-gray-900 text-xs md:text-sm uppercase tracking-wide leading-snug mb-0.5 md:mb-1 line-clamp-1">
-                                <?= htmlspecialchars($p['name']) ?>
-                            </h3>
-
-                            <?php if (!empty($p['description'])): ?>
-                                <p class="text-xs text-gray-400 line-clamp-1 md:line-clamp-2 mb-1 md:mb-2 hidden sm:block">
-                                    <?= htmlspecialchars($p['description']) ?>
-                                </p>
-                            <?php endif; ?>
-
-                            <!-- Rating -->
-                            <?php if (!empty($p['review_count']) && $p['review_count'] > 0): ?>
-                                <div class="flex items-center gap-1 mb-1">
-                                    <i class="fa-solid fa-star text-amber-400 text-[10px] md:text-xs"></i>
-                                    <span class="text-[10px] md:text-xs font-semibold text-gray-700">
-                                        <?= number_format($p['avg_rating'], 1) ?>
-                                    </span>
-                                    <span class="text-[9px] md:text-xs text-gray-400">
-                                        (<?= (int) $p['review_count'] ?>)
-                                    </span>
-                                </div>
-                            <?php endif; ?>
-
-                            <!-- Price -->
-                            <div class="mt-1 md:mt-2">
-                                <?php
-                                $min = floatval($p['min_price'] ?? 0);
-                                $max = floatval($p['max_price'] ?? 0);
-                                ?>
-                                <?php if ($min > 0 || $max > 0): ?>
-                                    <span class="text-[10px] md:text-sm font-semibold text-gray-800">
-                                        ₱<?= number_format($min, 2) ?>
-                                        <?= $min !== $max ? ' – ₱' . number_format($max, 2) : '' ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="text-[10px] md:text-xs text-gray-400 italic">Price not set</span>
-                                <?php endif; ?>
+                        <?php if (!empty($p['review_count']) && $p['review_count'] > 0): ?>
+                            <div class="flex items-center gap-1.5 mt-1 text-[10px] md:text-xs text-gray-400">
+                                <i class="fa-solid fa-star text-amber-400"></i>
+                                <span class="font-semibold text-gray-700"><?= number_format($p['avg_rating'], 1) ?></span>
+                                <span>(<?= (int) $p['review_count'] ?>)</span>
                             </div>
+                        <?php endif; ?>
+
+                        <!-- Price -->
+                        <div class="mt-1.5 flex items-baseline gap-1">
+                            <?php if ($min > 0 || $max > 0): ?>
+                                <?php if ($min !== $max): ?>
+                                    <span class="text-[10px] md:text-xs text-gray-400">From</span>
+                                <?php endif; ?>
+                                <span class="text-sm md:text-base font-bold text-gray-900">₱<?= number_format($min, 2) ?></span>
+                            <?php else: ?>
+                                <span class="text-[11px] md:text-xs text-gray-400">Price not set</span>
+                            <?php endif; ?>
                         </div>
-                    </a>
-                <?php endforeach; ?>
-            </div>
+                    </div>
+                </a>
+            <?php endforeach; ?>
         </div>
     </div>
 
     <script>
         (function () {
             const track = document.getElementById('newArrivalTrack');
-            const cards = track.querySelectorAll('a');
+            if (!track) return;
             const prevBtn = document.getElementById('newArrivalPrev');
             const nextBtn = document.getElementById('newArrivalNext');
+            const GAP = 12;
 
-            function getGap() {
-                return window.innerWidth >= 768 ? 16 : 8;
-            }
-
-            // Desktop arrow click: scroll by roughly one "page" of visible cards, native smooth scroll
-            function newArrivalSlide(dir) {
-                if (!cards.length) return;
-                const cardW = cards[0].offsetWidth;
-                const gap = getGap();
-                const containerWidth = track.offsetWidth;
-                const visible = Math.max(1, Math.floor((containerWidth + gap) / (cardW + gap)));
-                track.scrollBy({ left: dir * visible * (cardW + gap), behavior: 'smooth' });
-            }
-            window.newArrivalSlide = newArrivalSlide;
+            window.newArrivalSlide = function (dir) {
+                const card = track.querySelector('a');
+                if (!card) return;
+                const step = card.offsetWidth + GAP;
+                const visible = Math.max(1, Math.floor((track.clientWidth + GAP) / step));
+                track.scrollBy({ left: dir * visible * step, behavior: 'smooth' });
+            };
 
             function updateArrows() {
                 if (!prevBtn || !nextBtn) return;
                 const maxScroll = track.scrollWidth - track.clientWidth;
-
-                if (maxScroll <= 4) {
-                    prevBtn.style.display = 'none';
-                    nextBtn.style.display = 'none';
-                    return;
-                }
-                // Itago kapag nasa unang slide na (wala nang dulo sa kaliwa)
-                prevBtn.style.display = track.scrollLeft <= 4 ? 'none' : 'flex';
-                // Itago kapag nasa huling slide na (wala nang dulo sa kanan)
-                nextBtn.style.display = track.scrollLeft >= maxScroll - 4 ? 'none' : 'flex';
+                prevBtn.disabled = track.scrollLeft <= 4;
+                nextBtn.disabled = maxScroll <= 4 || track.scrollLeft >= maxScroll - 4;
             }
 
-            // Native scroll fires this on both touch swipe and arrow-triggered scroll
             track.addEventListener('scroll', updateArrows, { passive: true });
             window.addEventListener('resize', updateArrows);
             window.addEventListener('load', updateArrows);
-
-            updateArrows(); // initial check sa arrows pagka-load
+            updateArrows();
         })();
     </script>
 <?php endif; ?>

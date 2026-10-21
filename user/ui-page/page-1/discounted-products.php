@@ -1,8 +1,10 @@
 <?php
 // discounted-products.php
-// Expects $conn from the including page (already connected via connect.php)
+// Expects $conn from the including page (page.php)
+// Same card style as most-popularproduct.php (walang box, punong larawan)
 
-// Avoid redeclare error if this helper is already defined by another included file
+$uploadUrl = $uploadUrl ?? BASE_URL . '/uploads/';
+
 if (!function_exists('formatSoldCount')) {
     function formatSoldCount($n)
     {
@@ -50,7 +52,6 @@ $discResult = $conn->query("
 while ($row = $discResult->fetch_assoc())
     $discountedProducts[] = $row;
 
-// Kunin yung mga naka-save na product ng current user (para alam kung alin bookmark ang naka-red)
 $discSavedIds = [];
 if (isset($_SESSION['user_id'])) {
     $uid = (int) $_SESSION['user_id'];
@@ -64,194 +65,157 @@ if (isset($_SESSION['user_id'])) {
 ?>
 
 <?php if (!empty($discountedProducts)): ?>
-    <div class="mb-4 md:mb-8 mt-8">
-        <div class="flex items-center gap-4">
-            <h2 class="text-xs md:text-lg font-bold text-gray-900 whitespace-nowrap">
-                DISCOUNTED<span class="text-amber-500"> ITEMS</span>
-            </h2>
-            <span class="h-px w-16 md:w-32 bg-linear-to-r from-amber-300 to-transparent"></span>
-        </div>
-    </div>
+    <div class="mb-8 md:mb-10">
 
-    <div class="relative">
-
-        <!-- Left arrow (desktop only; mobile uses native touch scroll) -->
-        <button id="discountPrev" onclick="discountSlide(-1)" class="hidden md:flex absolute -left-2 md:-left-4 top-1/2 -translate-y-1/2 z-10
-               w-7 h-7 md:w-9 md:h-9 rounded-full bg-white border border-gray-200 shadow
-               items-center justify-center text-gray-600
-               hover:bg-gray-50 transition-colors duration-200">
-            <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-        </button>
-
-        <!-- Right arrow (desktop only) -->
-        <button id="discountNext" onclick="discountSlide(1)" class="hidden md:flex absolute -right-2 md:-right-4 top-1/2 -translate-y-1/2 z-10
-               w-7 h-7 md:w-9 md:h-9 rounded-full bg-white border border-gray-200 shadow
-               items-center justify-center text-gray-600
-               hover:bg-gray-50 transition-colors duration-200">
-            <svg class="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-        </button>
-
-        <!-- Track: native horizontal scroll + snap. Fast/native feel on touch, JS-assisted arrows on desktop -->
-        <div class="overflow-hidden px-1 p-2">
-            <div id="discountTrack" class="flex gap-2 md:gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory
-                       [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden p-1">
-                <?php foreach ($discountedProducts as $p): ?>
-                    <a href="<?= BASE_URL ?>/mainproductview?id=<?= $p['id'] ?>" class="group rounded-xl md:rounded-2xl overflow-hidden 
-                      block hover:shadow-lg transition-shadow duration-300 shrink-0 relative snap-start
-                      w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] lg:w-[calc(25%-9px)] hover:text-amber-500">
-
-                        <!-- Image -->
-                        <div
-                            class="relative aspect-square overflow-hidden bg-gray-50 flex items-center justify-center p-2 md:p-4">
-                            <?php if (!empty($p['imageproduct'])): ?>
-                                <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
-                                    alt="<?= htmlspecialchars($p['name']) ?>" class="w-full h-full object-contain" loading="lazy">
-                            <?php else: ?>
-                                <div class="w-full h-full flex items-center justify-center text-gray-300">
-                                    <i class="fa-solid fa-image text-3xl md:text-5xl"></i>
-                                </div>
-                            <?php endif; ?>
-
-                            <!-- Save / Bookmark button -->
-                            <button type="button" class="save-btn absolute top-2 right-2 z-20
-                                       hidden md:flex md:w-10 md:h-10 rounded-full bg-white/90 shadow
-                                       items-center justify-center
-                                       md:opacity-0 md:group-hover:opacity-100
-                                       transition-opacity duration-200" data-product-id="<?= $p['id'] ?>"
-                                aria-label="Save to favorites">
-                                <i
-                                    class="<?= in_array($p['id'], $discSavedIds) ? 'fa-solid text-red-500' : 'fa-regular text-orange-400' ?> fa-heart text-sm md:text-lg"></i>
-                            </button>
-
-                            <!-- Share button -->
-                            <button type="button" class="share-btn absolute top-14 right-2 z-20
-                                       hidden md:flex md:w-10 md:h-10 rounded-full bg-white/90 shadow
-                                       items-center justify-center
-                                       md:opacity-0 md:group-hover:opacity-100
-                                       transition-opacity duration-200" data-product-id="<?= $p['id'] ?>"
-                                data-product-name="<?= htmlspecialchars($p['name']) ?>" aria-label="Share product">
-                                <i class="fa-solid fa-share-nodes text-orange-500 text-sm md:text-base"></i>
-                            </button>
-                        </div>
-
-                        <!-- Info -->
-                        <div class="p-2 md:p-3">
-                            <h3
-                                class="font-bold text-xs md:text-sm uppercase tracking-wide leading-snug mb-0.5 md:mb-1 line-clamp-1">
-                                <?= htmlspecialchars($p['name']) ?>
-                            </h3>
-
-                            <?php if (!empty($p['description'])): ?>
-                                <p class="text-xs text-gray-400 line-clamp-1 md:line-clamp-2 mb-1 md:mb-2 hidden sm:block">
-                                    <?= htmlspecialchars($p['description']) ?>
-                                </p>
-                            <?php endif; ?>
-
-                            <!-- Rating + Sold count -->
-                            <div class="flex items-center gap-2 mb-1 flex-wrap">
-                                <?php if (!empty($p['review_count']) && $p['review_count'] > 0): ?>
-                                    <div class="flex items-center gap-1">
-                                        <i class="fa-solid fa-star text-amber-400 text-[10px] md:text-xs"></i>
-                                        <span class="text-[10px] md:text-xs font-semibold text-gray-700">
-                                            <?= number_format($p['avg_rating'], 1) ?>
-                                        </span>
-                                        <span class="text-[9px] md:text-xs text-gray-400">
-                                            (<?= (int) $p['review_count'] ?>)
-                                        </span>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if (!empty($p['total_sold']) && $p['total_sold'] > 0): ?>
-                                    <span class="text-[9px] md:text-xs text-gray-400">
-                                        <?= formatSoldCount($p['total_sold']) ?> sold
-                                    </span>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- Price: original (strikethrough) + discounted + discount badge -->
-                            <div class="mt-1 md:mt-2 flex items-baseline gap-1.5 flex-wrap">
-                                <span class="text-[10px] md:text-sm font-semibold text-red-500">
-                                    ₱<?= number_format($p['min_discounted_price'], 2) ?>
-                                    <?= $p['min_discounted_price'] !== $p['max_discounted_price']
-                                        ? ' – ₱' . number_format($p['max_discounted_price'], 2)
-                                        : '' ?>
-                                </span>
-                                <span class="text-[9px] md:text-xs text-gray-400 line-through">
-                                    ₱<?= number_format($p['min_price'], 2) ?>
-                                    <?= $p['min_price'] !== $p['max_price'] ? ' – ₱' . number_format($p['max_price'], 2) : '' ?>
-                                </span>
-                                <span
-                                    class="bg-red-500 text-white text-[9px] md:text-xs font-bold px-1.5 py-0.5 rounded-md leading-none">
-                                    -<?= rtrim(rtrim(number_format($p['max_discount'], 2), '0'), '.') ?>%
-                                </span>
-                            </div>
-                        </div>
-                    </a>
-                <?php endforeach; ?>
+        <!-- Header -->
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-2.5">
+                <span class="w-1.5 h-5 bg-orange-500 rounded-sm"></span>
+                <h2 class="text-base md:text-lg font-extrabold text-gray-900">Today's Deals</h2>
+                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider
+                             text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                    <i class="fa-solid fa-tag"></i> Sale
+                </span>
             </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="discountPrev" onclick="discountSlide(-1)" aria-label="Previous"
+                    class="hidden md:flex w-8 h-8 rounded-full border border-gray-200 bg-white items-center justify-center
+                           text-gray-600 hover:border-orange-400 hover:text-orange-500 disabled:opacity-30
+                           disabled:pointer-events-none transition-colors">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <button type="button" id="discountNext" onclick="discountSlide(1)" aria-label="Next"
+                    class="hidden md:flex w-8 h-8 rounded-full border border-gray-200 bg-white items-center justify-center
+                           text-gray-600 hover:border-orange-400 hover:text-orange-500 disabled:opacity-30
+                           disabled:pointer-events-none transition-colors">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+                <a href="<?= BASE_URL ?>/shop"
+                    class="ml-1 text-xs md:text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
+                    View all →
+                </a>
+            </div>
+        </div>
+
+        <!-- Track -->
+        <div id="discountTrack" class="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory py-1 -mx-1 px-1
+                    [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <?php foreach ($discountedProducts as $p):
+                $dMin = floatval($p['min_discounted_price'] ?? 0);
+                $dMax = floatval($p['max_discounted_price'] ?? 0);
+                $oMin = floatval($p['min_price'] ?? 0);
+                $pct = rtrim(rtrim(number_format($p['max_discount'], 2), '0'), '.');
+                $isSaved = in_array((int) $p['id'], $discSavedIds, true);
+                ?>
+                <a href="<?= BASE_URL ?>/mainproductview?id=<?= (int) $p['id'] ?>"
+                    aria-label="View details for <?= htmlspecialchars($p['name']) ?>"
+                    class="group shrink-0 snap-start flex flex-col
+                          w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(20%-9.6px)]">
+
+                    <!-- Image -->
+                    <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                        <?php if (!empty($p['imageproduct'])): ?>
+                            <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
+                                alt="<?= htmlspecialchars($p['name']) ?>" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                        <?php else: ?>
+                            <div class="w-full h-full flex items-center justify-center">
+                                <i class="fa-regular fa-image text-3xl md:text-4xl text-gray-300"></i>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Discount badge -->
+                        <span class="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm">
+                            -<?= $pct ?>%
+                        </span>
+
+                        <!-- Actions -->
+                        <div class="absolute top-2 right-2 z-10 flex flex-col gap-1.5">
+                            <button type="button" class="save-btn w-8 h-8 rounded-full bg-white shadow-sm
+                                       flex items-center justify-center transition-all
+                                       <?= $isSaved ? '' : 'md:opacity-0 md:group-hover:opacity-100' ?>"
+                                data-product-id="<?= (int) $p['id'] ?>" aria-label="Save to favorites">
+                                <i class="<?= $isSaved ? 'fa-solid text-red-500' : 'fa-regular text-gray-500' ?> fa-heart text-sm"></i>
+                            </button>                        </div>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="flex-1 flex flex-col pt-2.5 px-0.5">
+                        <h3 class="text-xs md:text-sm font-medium text-gray-800 leading-snug line-clamp-2
+                                   group-hover:text-orange-600 transition-colors">
+                            <?= htmlspecialchars($p['name']) ?>
+                        </h3>
+
+                        <?php if ((!empty($p['review_count']) && $p['review_count'] > 0) || (!empty($p['total_sold']) && $p['total_sold'] > 0)): ?>
+                            <div class="flex items-center gap-1.5 mt-1 text-[10px] md:text-xs text-gray-400">
+                                <?php if (!empty($p['review_count']) && $p['review_count'] > 0): ?>
+                                    <i class="fa-solid fa-star text-amber-400"></i>
+                                    <span class="font-semibold text-gray-700"><?= number_format($p['avg_rating'], 1) ?></span>
+                                    <span>(<?= (int) $p['review_count'] ?>)</span>
+                                <?php endif; ?>
+                                <?php if (!empty($p['review_count']) && $p['review_count'] > 0 && !empty($p['total_sold']) && $p['total_sold'] > 0): ?>
+                                    <span class="text-gray-300">|</span>
+                                <?php endif; ?>
+                                <?php if (!empty($p['total_sold']) && $p['total_sold'] > 0): ?>
+                                    <span><?= formatSoldCount($p['total_sold']) ?> sold</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Price -->
+                        <div class="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+                            <?php if ($dMin !== $dMax): ?>
+                                <span class="text-[10px] md:text-xs text-gray-400">From</span>
+                            <?php endif; ?>
+                            <span class="text-sm md:text-base font-bold text-red-600">₱<?= number_format($dMin, 2) ?></span>
+                            <span class="text-[10px] md:text-xs text-gray-400 line-through">₱<?= number_format($oMin, 2) ?></span>
+                        </div>
+                    </div>
+                </a>
+            <?php endforeach; ?>
         </div>
     </div>
 
     <script>
         (function () {
             const track = document.getElementById('discountTrack');
-            const cards = track.querySelectorAll('a');
+            if (!track) return;
             const prevBtn = document.getElementById('discountPrev');
             const nextBtn = document.getElementById('discountNext');
+            const GAP = 12;
 
-            function getGap() {
-                return window.innerWidth >= 768 ? 16 : 8;
-            }
-
-            // Desktop arrow click: scroll by roughly one "page" of visible cards, native smooth scroll
-            function discountSlide(dir) {
-                if (!cards.length) return;
-                const cardW = cards[0].offsetWidth;
-                const gap = getGap();
-                const containerWidth = track.offsetWidth;
-                const visible = Math.max(1, Math.floor((containerWidth + gap) / (cardW + gap)));
-                track.scrollBy({ left: dir * visible * (cardW + gap), behavior: 'smooth' });
-            }
-            window.discountSlide = discountSlide;
+            window.discountSlide = function (dir) {
+                const card = track.querySelector('a');
+                if (!card) return;
+                const step = card.offsetWidth + GAP;
+                const visible = Math.max(1, Math.floor((track.clientWidth + GAP) / step));
+                track.scrollBy({ left: dir * visible * step, behavior: 'smooth' });
+            };
 
             function updateArrows() {
                 if (!prevBtn || !nextBtn) return;
                 const maxScroll = track.scrollWidth - track.clientWidth;
-
-                if (maxScroll <= 4) {
-                    prevBtn.style.display = 'none';
-                    nextBtn.style.display = 'none';
-                    return;
-                }
-                prevBtn.style.display = track.scrollLeft <= 4 ? 'none' : 'flex';
-                nextBtn.style.display = track.scrollLeft >= maxScroll - 4 ? 'none' : 'flex';
+                prevBtn.disabled = track.scrollLeft <= 4;
+                nextBtn.disabled = maxScroll <= 4 || track.scrollLeft >= maxScroll - 4;
             }
 
-            // Native scroll fires this on both touch swipe and arrow-triggered scroll
             track.addEventListener('scroll', updateArrows, { passive: true });
             window.addEventListener('resize', updateArrows);
             window.addEventListener('load', updateArrows);
-
             updateArrows();
         })();
 
-        // Save / Unsave (bookmark) functionality — scoped lang sa #discountTrack
+        // Save / Unsave — scoped sa #discountTrack
         document.querySelectorAll('#discountTrack .save-btn').forEach(btn => {
             btn.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-
                 const icon = this.querySelector('i');
-                const productId = this.dataset.productId;
 
                 fetch('<?= BASE_URL ?>/savedproduct', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'product_id=' + encodeURIComponent(productId)
+                    body: 'product_id=' + encodeURIComponent(this.dataset.productId)
                 })
                     .then(res => res.json())
                     .then(data => {
@@ -259,48 +223,16 @@ if (isset($_SESSION['user_id'])) {
                             alert(data.message || 'May error, subukan ulit.');
                             return;
                         }
-                        if (data.saved) {
-                            icon.classList.remove('fa-regular', 'text-gray-500');
-                            icon.classList.add('fa-solid', 'text-red-500');
-                        } else {
-                            icon.classList.remove('fa-solid', 'text-red-500');
-                            icon.classList.add('fa-regular', 'text-gray-500');
-                        }
+                        icon.classList.toggle('fa-solid', data.saved);
+                        icon.classList.toggle('text-red-500', data.saved);
+                        icon.classList.toggle('fa-regular', !data.saved);
+                        icon.classList.toggle('text-gray-500', !data.saved);
+                        this.classList.toggle('md:opacity-0', !data.saved);
+                        this.classList.toggle('md:group-hover:opacity-100', !data.saved);
                     })
                     .catch(() => alert('May error, subukan ulit.'));
             });
         });
 
-        // Share functionality — scoped lang sa #discountTrack
-        document.querySelectorAll('#discountTrack .share-btn').forEach(btn => {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const productId = this.dataset.productId;
-                const productName = this.dataset.productName;
-                const shareUrl = '<?= BASE_URL ?>/mainproductview?id=' + productId;
-
-                if (navigator.share) {
-                    navigator.share({
-                        title: productName,
-                        text: 'Check out ' + productName,
-                        url: shareUrl
-                    }).catch(() => { }); // user cancelled, ignore
-                } else {
-                    navigator.clipboard.writeText(shareUrl)
-                        .then(() => {
-                            const icon = this.querySelector('i');
-                            icon.classList.remove('fa-share-nodes');
-                            icon.classList.add('fa-check');
-                            setTimeout(() => {
-                                icon.classList.remove('fa-check');
-                                icon.classList.add('fa-share-nodes');
-                            }, 1500);
-                        })
-                        .catch(() => alert('Link: ' + shareUrl));
-                }
-            });
-        });
     </script>
 <?php endif; ?>
