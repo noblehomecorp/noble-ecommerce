@@ -74,258 +74,288 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
     <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
 
     <!-- Toast -->
-    <div id="toast" class="fixed top-6 right-6 z-50 opacity-0 pointer-events-none translate-y-2
-            flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
-            bg-white border border-gray-100 text-gray-800 min-w-56">
+    <div id="toast" class="fixed top-6 right-6 z-[90] opacity-0 pointer-events-none translate-y-2
+            flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium
+            bg-white border border-gray-200 text-gray-800 min-w-56">
         <span id="toast-icon"></span>
         <span id="toast-msg"></span>
     </div>
 
     <!-- Mobile filter backdrop -->
-    <div id="filterOverlay" class="fixed inset-0 bg-black/40 z-40 hidden md:hidden" onclick="closeFilterDrawer()"></div>
+    <div id="filterOverlay" class="fixed inset-0 bg-gray-900/40 z-[55] hidden md:hidden" onclick="closeFilterDrawer()"></div>
 
-    <div class="max-w-7xl mx-auto px-3 py-2 pb-24 md:pb-5">
-        <div class="flex flex-col md:flex-row gap-3">
+    <main class="max-w-screen-xl w-full mx-auto px-3 md:px-4 py-4 md:py-6 pb-24 md:pb-10 flex-1">
+
+        <!-- Page header -->
+        <header class="mb-5 pb-5 border-b border-gray-200">
+            <nav class="flex items-center gap-1.5 text-xs md:text-sm text-gray-500" aria-label="Breadcrumb">
+                <a href="<?= BASE_URL ?>" class="hover:text-gray-900 transition-colors">Home</a>
+                <span class="text-gray-300">/</span>
+                <span class="text-gray-900">Shop</span>
+            </nav>
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mt-3">
+                <div>
+                    <h1 class="text-2xl md:text-[32px] font-bold tracking-tight text-gray-900 leading-tight">
+                        <?= $searchQuery !== '' ? 'Results for “' . htmlspecialchars($searchQuery) . '”' : 'Shop All Products' ?>
+                    </h1>
+                    <p class="text-sm text-gray-500 mt-1">Building materials &amp; home essentials</p>
+                </div>
+
+                <!-- Realtime search -->
+                <div class="relative w-full md:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    <input type="text" id="searchInput" value="<?= htmlspecialchars($searchQuery) ?>"
+                        placeholder="Search products…" aria-label="Search products"
+                        class="w-full h-10 pl-8 pr-9 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5">
+                    <span id="searchSpinner" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                        <i class="fa-solid fa-circle-notch fa-spin text-gray-400 text-xs"></i>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-6 items-start">
 
             <!-- ═══════════════ SIDEBAR FILTERS ═══════════════ -->
-            <!-- Mobile: fixed off-canvas drawer sliding from the left. Desktop (md+): normal sticky sidebar. -->
-            <aside id="filterSidebar" class="fixed md:static top-0 left-0 z-50 md:z-auto
-                    w-72 max-w-[85%] md:w-64 md:max-w-none h-full md:h-auto
-                    bg-white md:bg-transparent shrink-0
-                    transform -translate-x-full md:translate-x-0
-                    transition-transform duration-300 ease-in-out
-                    overflow-y-auto md:overflow-visible shadow-2xl md:shadow-none">
-                <div class="rounded-xl p-5 md:sticky md:top-4">
+            <!-- Mobile: bottom sheet. Desktop (md+): sticky sidebar card. -->
+            <aside id="filterSidebar" aria-label="Filters"
+                class="fixed md:sticky inset-x-0 bottom-0 md:inset-auto md:top-36 z-[60] md:z-auto
+                       w-full md:w-64 shrink-0 max-h-[85vh] md:max-h-[calc(100vh-10rem)]
+                       bg-white rounded-t-xl md:rounded-lg md:border md:border-gray-200
+                       translate-y-full md:translate-y-0 transition-transform duration-300 ease-in-out
+                       flex flex-col overflow-hidden shadow-2xl md:shadow-none">
 
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest">Filters</h2>
-                        <div class="flex items-center gap-3">
-                            <button type="button" id="clearFiltersBtn"
-                                class="text-xs text-amber-500 hover:text-amber-600 font-medium">Clear</button>
-                            <button type="button" id="closeFilterBtn" onclick="closeFilterDrawer()"
-                                class="md:hidden w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                                title="Close filters">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+                    <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-900">Filters
+                        <span id="activeFilterCount" class="hidden min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold items-center justify-center"></span>
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="clearFiltersBtn"
+                            class="text-xs font-medium text-gray-600 hover:text-gray-900 underline underline-offset-2">Clear all</button>
+                        <button type="button" id="closeFilterBtn" onclick="closeFilterDrawer()" title="Close filters"
+                            class="md:hidden w-8 h-8 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
+                </div>
+
+                <div class="nh-thin-scroll flex-1 overflow-y-auto">
 
                     <!-- Sale Only -->
-                    <div class="mb-5 pb-5 border-b border-gray-100">
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <span class="text-xs font-semibold text-red-500 uppercase tracking-wider">Sale Items
-                                Only</span>
-                            <div class="relative">
-                                <input type="checkbox" id="filter_sale_only" <?= $saleOnly ? 'checked' : '' ?>
-                                    class="sr-only peer filter-input">
-                                <div
-                                    class="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-amber-500 transition-colors duration-200">
-                                </div>
-                                <div
-                                    class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-5">
-                                </div>
-                            </div>
-                        </label>
-                    </div>
+                    <label class="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50">
+                        <span class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                            <i class="fa-solid fa-tag text-xs text-red-500"></i> On sale only
+                        </span>
+                        <span class="relative shrink-0">
+                            <input type="checkbox" id="filter_sale_only" <?= $saleOnly ? 'checked' : '' ?> class="sr-only peer filter-input">
+                            <span class="block w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-gray-900 transition-colors duration-200"></span>
+                            <span class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-5"></span>
+                        </span>
+                    </label>
 
-                    <!-- Category -->
                     <?php if (!empty($availableCategories)): ?>
-                        <details class="filter-dropdown group mb-5 pb-5 border-b border-gray-100" open>
-                            <summary
-                                class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</span>
-                                <i
-                                    class="fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 group-open:rotate-180"></i>
-                            </summary>
-                            <div class="space-y-1.5 max-h-40 overflow-y-auto mt-2.5">
-                                <?php foreach ($availableCategories as $catName): ?>
-                                    <label
-                                        class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-amber-600">
-                                        <input type="checkbox" name="categories[]" value="<?= htmlspecialchars($catName) ?>"
-                                            <?= in_array(mb_strtolower($catName), $selectedCategoriesLower) ? 'checked' : '' ?>
-                                            class="rounded border-gray-300 text-amber-500 focus:ring-amber-400 filter-input">
-                                        <?= htmlspecialchars($catName) ?>
+                        <div class="nh-filter-sec border-b border-gray-100" data-open="0">
+                            <button type="button" class="nh-filter-head w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50" aria-expanded="false">
+                                <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                    Category
+                                    <span class="nh-sec-count hidden min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold normal-case tracking-normal items-center justify-center"></span>
+                                </span>
+                                <i class="nh-chev fa-solid fa-chevron-up text-[10px] text-gray-400 transition-transform duration-200"></i>
+                            </button>
+                            <div class="nh-filter-body nh-thin-scroll max-h-52 overflow-y-auto px-2 pb-3">
+                                <?php foreach ($availableCategories as $opt): ?>
+                                    <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                                        <input type="checkbox" name="categories[]" value="<?= htmlspecialchars($opt) ?>"
+                                            <?= in_array(mb_strtolower($opt), $selectedCategoriesLower) ? 'checked' : '' ?>
+                                            class="w-4 h-4 rounded border-gray-300 accent-gray-900 filter-input shrink-0">
+                                        <span class="truncate"><?= htmlspecialchars($opt) ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
-                        </details>
+                        </div>
                     <?php endif; ?>
 
-                    <!-- Color -->
                     <?php if (!empty($availableColors)): ?>
-                        <details class="filter-dropdown group mb-5 pb-5 border-b border-gray-100" open>
-                            <summary
-                                class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Color</span>
-                                <i
-                                    class="fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 group-open:rotate-180"></i>
-                            </summary>
-                            <div class="space-y-1.5 max-h-40 overflow-y-auto mt-2.5">
-                                <?php foreach ($availableColors as $cName): ?>
-                                    <label
-                                        class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-amber-600">
-                                        <input type="checkbox" name="colors[]" value="<?= htmlspecialchars($cName) ?>"
-                                            <?= in_array(mb_strtolower($cName), $selectedColorsLower) ? 'checked' : '' ?>
-                                            class="rounded border-gray-300 text-amber-500 focus:ring-amber-400 filter-input">
-                                        <?= htmlspecialchars($cName) ?>
+                        <div class="nh-filter-sec border-b border-gray-100" data-open="0">
+                            <button type="button" class="nh-filter-head w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50" aria-expanded="false">
+                                <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                    Color
+                                    <span class="nh-sec-count hidden min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold normal-case tracking-normal items-center justify-center"></span>
+                                </span>
+                                <i class="nh-chev fa-solid fa-chevron-up text-[10px] text-gray-400 transition-transform duration-200"></i>
+                            </button>
+                            <div class="nh-filter-body nh-thin-scroll max-h-52 overflow-y-auto px-2 pb-3">
+                                <?php foreach ($availableColors as $opt): ?>
+                                    <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                                        <input type="checkbox" name="colors[]" value="<?= htmlspecialchars($opt) ?>"
+                                            <?= in_array(mb_strtolower($opt), $selectedColorsLower) ? 'checked' : '' ?>
+                                            class="w-4 h-4 rounded border-gray-300 accent-gray-900 filter-input shrink-0">
+                                        <span class="truncate"><?= htmlspecialchars($opt) ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
-                        </details>
+                        </div>
                     <?php endif; ?>
 
-                    <!-- Size -->
                     <?php if (!empty($availableSizes)): ?>
-                        <details class="filter-dropdown group mb-5 pb-5 border-b border-gray-100" open>
-                            <summary
-                                class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Size</span>
-                                <i
-                                    class="fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 group-open:rotate-180"></i>
-                            </summary>
-                            <div class="space-y-1.5 max-h-40 overflow-y-auto mt-2.5">
-                                <?php foreach ($availableSizes as $sName): ?>
-                                    <label
-                                        class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-amber-600">
-                                        <input type="checkbox" name="sizes[]" value="<?= htmlspecialchars($sName) ?>"
-                                            <?= in_array(mb_strtolower($sName), $selectedSizesLower) ? 'checked' : '' ?>
-                                            class="rounded border-gray-300 text-amber-500 focus:ring-amber-400 filter-input">
-                                        <?= htmlspecialchars($sName) ?>
+                        <div class="nh-filter-sec border-b border-gray-100" data-open="0">
+                            <button type="button" class="nh-filter-head w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50" aria-expanded="false">
+                                <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-600">
+                                    Size
+                                    <span class="nh-sec-count hidden min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold normal-case tracking-normal items-center justify-center"></span>
+                                </span>
+                                <i class="nh-chev fa-solid fa-chevron-up text-[10px] text-gray-400 transition-transform duration-200"></i>
+                            </button>
+                            <div class="nh-filter-body nh-thin-scroll max-h-52 overflow-y-auto px-2 pb-3">
+                                <?php foreach ($availableSizes as $opt): ?>
+                                    <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                                        <input type="checkbox" name="sizes[]" value="<?= htmlspecialchars($opt) ?>"
+                                            <?= in_array(mb_strtolower($opt), $selectedSizesLower) ? 'checked' : '' ?>
+                                            class="w-4 h-4 rounded border-gray-300 accent-gray-900 filter-input shrink-0">
+                                        <span class="truncate"><?= htmlspecialchars($opt) ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
-                        </details>
+                        </div>
                     <?php endif; ?>
 
-                    <!-- Price Range -->
-                    <details class="filter-dropdown group mb-5" open>
-                        <summary
-                            class="flex items-center justify-between cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Price
-                                Range</span>
-                            <i
-                                class="fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 group-open:rotate-180"></i>
-                        </summary>
-                        <div class="mt-2.5">
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="filter_min_price"
-                                    placeholder="₱<?= number_format($priceLo, 0) ?>"
-                                    value="<?= $minPriceFilter !== null ? htmlspecialchars((string) $minPriceFilter) : '' ?>"
-                                    min="0" step="0.01"
-                                    class="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-amber-400 filter-input">
-                                <span class="text-gray-300 text-xs">–</span>
-                                <input type="number" id="filter_max_price"
-                                    placeholder="₱<?= number_format($priceHi, 0) ?>"
-                                    value="<?= $maxPriceFilter !== null ? htmlspecialchars((string) $maxPriceFilter) : '' ?>"
-                                    min="0" step="0.01"
-                                    class="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-amber-400 filter-input">
+                    <!-- Price -->
+                    <div class="nh-filter-sec" data-open="0">
+                        <button type="button" class="nh-filter-head w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50" aria-expanded="false">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-600">Price</span>
+                            <i class="nh-chev fa-solid fa-chevron-up text-[10px] text-gray-400 transition-transform duration-200"></i>
+                        </button>
+                        <div class="nh-filter-body px-4 pb-4">
+                            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                <label class="block">
+                                    <span class="block text-[11px] text-gray-500 mb-1">Min</span>
+                                    <span class="relative block">
+                                        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                                        <input type="number" id="filter_min_price" aria-label="Minimum price" placeholder="0"
+                                            value="<?= $minPriceFilter !== null ? htmlspecialchars((string) $minPriceFilter) : '' ?>"
+                                            min="0" step="0.01"
+                                            class="nh-num w-full h-10 pl-6 pr-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-gray-900 filter-input">
+                                    </span>
+                                </label>
+                                <span class="text-gray-400 text-sm mt-5">–</span>
+                                <label class="block">
+                                    <span class="block text-[11px] text-gray-500 mb-1">Max</span>
+                                    <span class="relative block">
+                                        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₱</span>
+                                        <input type="number" id="filter_max_price" aria-label="Maximum price" placeholder="Any"
+                                            value="<?= $maxPriceFilter !== null ? htmlspecialchars((string) $maxPriceFilter) : '' ?>"
+                                            min="0" step="0.01"
+                                            class="nh-num w-full h-10 pl-6 pr-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-gray-900 filter-input">
+                                    </span>
+                                </label>
                             </div>
-                            <p class="text-[10px] text-gray-400 mt-1.5">
-                                Available range: ₱<?= number_format($priceLo, 2) ?> – ₱<?= number_format($priceHi, 2) ?>
+                            <p class="text-[11px] text-gray-500 mt-2">
+                                Prices from ₱<?= number_format($priceLo, 0) ?> to ₱<?= number_format($priceHi, 0) ?>
                             </p>
                         </div>
-                    </details>
+                    </div>
+                </div>
 
-                    <!-- Mobile: apply button so users can confirm and close the drawer -->
+                <!-- Mobile: confirm & close -->
+                <div class="md:hidden p-4 border-t border-gray-200 shrink-0">
                     <button type="button" onclick="closeFilterDrawer()"
-                        class="md:hidden w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition">
-                        Apply Filters
+                        class="w-full h-11 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-md transition">
+                        Show results
                     </button>
-
                 </div>
             </aside>
 
             <!-- ═══════════════ PRODUCT AREA ═══════════════ -->
-            <div class="flex-1 flex flex-col min-w-0">
+            <section class="flex-1 flex flex-col min-w-0 w-full">
 
-                <!-- Header row -->
-                <div class="flex items-center gap-3 mb-5 mt-4">
+                <!-- Toolbar -->
+                <div class="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-3 md:px-4 py-2.5 mb-4">
                     <button type="button" id="openFilterBtn"
-                        class="md:hidden shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 border border-gray-200 rounded-lg hover:border-amber-400 hover:text-amber-600 transition">
-                        <i class="fa-solid fa-sliders"></i> Filters
+                        class="md:hidden inline-flex items-center gap-2 h-9 px-3 rounded-md border border-gray-300 text-sm font-medium text-gray-800">
+                        <i class="fa-solid fa-sliders text-xs"></i> Filters
+                        <span id="activeFilterCountMobile" class="hidden min-w-[18px] h-[18px] px-1 rounded-full bg-gray-900 text-white text-[10px] font-bold items-center justify-center"></span>
                     </button>
-
-                    <h1 class="text-lg md:text-xl font-bold text-gray-900 shrink-0">Shop</h1>
-
-                    <!-- Realtime search input -->
-                    <div class="relative w-full md:w-64">
-                        <i
-                            class="fa-solid fa-magnifying-glass absolute left-0 top-1/2 -translate-y-1/2 text-gray-300 text-xs pointer-events-none"></i>
-                        <input type="text" id="searchInput" value="<?= htmlspecialchars($searchQuery) ?>"
-                            placeholder="Search products…" class="w-full pl-5 pr-6 py-1.5 text-xs border-0 border-b border-gray-200
-                               focus:outline-none focus:border-amber-400 bg-transparent">
-                        <span id="searchSpinner" class="hidden absolute right-0 top-1/2 -translate-y-1/2">
-                            <i class="fa-solid fa-circle-notch fa-spin text-amber-400 text-xs"></i>
-                        </span>
-                    </div>
+                    <p id="resultsLabel" class="hidden md:block text-sm text-gray-600">Loading products…</p>
                 </div>
+
+                <!-- Active filter chips -->
+                <div id="activeChips" class="hidden flex-wrap items-center gap-2 mb-4"></div>
 
                 <!-- Product grid (populated by AJAX) -->
                 <div id="products-area"
-                    class="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 content-start">
-                    <!-- skeleton shown on first load -->
+                    class="flex-1 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 md:gap-x-4 content-start">
                 </div>
 
-                <!-- Pagination (injected separately so it sits outside the grid) -->
-                <div id="pagination-area"></div>
-
-            </div>
+                <!-- Pagination -->
+                <div id="pagination-area" class="mt-8"></div>
+            </section>
         </div>
-    </div>
+    </main>
 
     <!-- ═══════════════ ADD TO CART MODAL ═══════════════ -->
-    <div id="addToCartModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+    <div id="addToCartModal" class="fixed inset-0 z-[80] hidden items-end sm:items-center justify-center bg-gray-900/50 p-0 sm:p-4"
         onclick="closeModalBackdrop(event)">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-5 relative" onclick="event.stopPropagation()">
-            <button onclick="closeAddToCartModal()" class="absolute top-3 right-3 text-gray-300 hover:text-gray-500"
-                title="Close">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <div class="flex gap-3 mb-4">
+        <div class="bg-white rounded-t-xl sm:rounded-lg w-full sm:max-w-md shadow-xl relative overflow-hidden" onclick="event.stopPropagation()">
+
+            <div class="flex gap-4 p-5 border-b border-gray-100">
                 <div id="modalProductImage"
-                    class="w-16 h-16 rounded-xl bg-gray-50 overflow-hidden flex items-center justify-center border border-gray-100 shrink-0">
+                    class="w-20 h-20 rounded-md bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-200 shrink-0">
+                </div>
+                <div class="min-w-0 flex-1 pr-6">
+                    <h3 id="modalProductName" class="text-sm font-semibold text-gray-900 leading-snug"></h3>
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                        <p id="modalProductPrice" class="text-lg font-bold text-gray-900"></p>
+                        <span id="modalPromoTimer" style="display:none;"
+                            class="items-center gap-1 text-red-600 text-[11px] font-semibold">
+                            <i class="fa-regular fa-clock"></i> <span id="modalPromoTimerText">--:--:--</span>
+                        </span>
+                    </div>
+                    <p id="modalStockLabel" class="text-xs mt-1"></p>
+                </div>
+                <button type="button" onclick="closeAddToCartModal()" title="Close" aria-label="Close"
+                    class="absolute top-3 right-3 w-8 h-8 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div id="modalColorSection">
+                    <p class="text-sm font-semibold text-gray-900 mb-2">Color</p>
+                    <div id="modalColorOptions" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div id="modalSizeSection">
+                    <p class="text-sm font-semibold text-gray-900 mb-2">Size</p>
+                    <div id="modalSizeOptions" class="flex flex-wrap gap-2">
+                        <span class="text-xs text-gray-500">Select a color first</span>
+                    </div>
                 </div>
                 <div>
-                    <h3 id="modalProductName" class="text-sm font-bold text-gray-900"></h3>
-                    <div class="flex items-center gap-2 mt-1">
-                        <p id="modalProductPrice" class="text-sm font-semibold text-amber-600"></p>
-                        <span id="modalPromoTimer" style="display:none;"
-                            class="items-center gap-1 bg-red-50 text-red-500 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-red-100">
-                            <i class="fa-solid fa-clock"></i> <span id="modalPromoTimerText">--:--:--</span>
-                        </span>
+                    <p class="text-sm font-semibold text-gray-900 mb-2">Quantity</p>
+                    <div class="inline-flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
+                        <button type="button" onclick="modalChangeQty(-1)" aria-label="Decrease quantity"
+                            class="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition">
+                            <i class="fa-solid fa-minus text-xs"></i>
+                        </button>
+                        <input type="number" id="modalQtyInput" value="1" min="1" inputmode="numeric" aria-label="Quantity"
+                            class="qty-input w-14 h-10 text-center text-sm font-semibold text-gray-900 border-x border-gray-300 focus:outline-none focus:bg-gray-50">
+                        <button type="button" onclick="modalChangeQty(1)" aria-label="Increase quantity"
+                            class="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="mb-4" id="modalColorSection">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Color</p>
-                <div id="modalColorOptions" class="flex flex-wrap gap-2"></div>
+
+            <div class="flex gap-2 px-5 pb-5">
+                <a id="modalViewLink" href="#"
+                    class="flex-1 h-11 inline-flex items-center justify-center rounded-md border border-gray-300 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition">
+                    View details
+                </a>
+                <button id="modalAddBtn" type="button" onclick="confirmAddToCart()" disabled
+                    class="flex-1 h-11 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-md transition">
+                    <i class="fa-solid fa-cart-plus mr-1.5"></i> Add to Cart
+                </button>
             </div>
-            <div class="mb-4" id="modalSizeSection">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Size</p>
-                <div id="modalSizeOptions" class="flex flex-wrap gap-2">
-                    <span class="text-xs text-gray-400">Select a color first</span>
-                </div>
-            </div>
-            <p id="modalStockLabel" class="text-xs mb-3"></p>
-            <div class="flex items-center gap-3 mb-4">
-                <span class="text-xs text-gray-500">Quantity</span>
-                <div class="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden">
-                    <button type="button" onclick="modalChangeQty(-1)"
-                        class="w-7 h-7 flex items-center justify-center text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition text-xs">
-                        <i class="fa-solid fa-minus"></i>
-                    </button>
-                    <input type="number" id="modalQtyInput" value="1" min="1"
-                        class="qty-input w-10 h-7 text-center text-xs font-semibold text-gray-800 border-x border-gray-200 focus:outline-none focus:bg-amber-50">
-                    <button type="button" onclick="modalChangeQty(1)"
-                        class="w-7 h-7 flex items-center justify-center text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition text-xs">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-                </div>
-            </div>
-            <button id="modalAddBtn" onclick="confirmAddToCart()" disabled class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300
-                   disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">
-                Add to Cart
-            </button>
         </div>
     </div>
 
@@ -344,6 +374,25 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
         #toast {
             transition: opacity .3s ease, transform .3s ease;
+        }
+
+        .nh-num::-webkit-inner-spin-button,
+        .nh-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .nh-num { -moz-appearance: textfield; appearance: textfield; }
+
+        .nh-filter-sec[data-open="0"] .nh-filter-body { display: none; }
+        .nh-filter-sec[data-open="0"] .nh-chev { transform: rotate(180deg); }
+
+        .nh-thin-scroll { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        .nh-thin-scroll::-webkit-scrollbar { width: 6px; }
+        .nh-thin-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+
+        /* Selected option buttons sa modal */
+        #addToCartModal .opt-selected {
+            border-color: #111827 !important;
+            box-shadow: inset 0 0 0 1px #111827;
+            color: #111827;
+            font-weight: 600;
         }
     </style>
 
@@ -393,15 +442,13 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
         // ── Mobile filter drawer ──────────────────────────────────────────────────────
         function openFilterDrawer() {
-            document.getElementById('filterSidebar').classList.remove('-translate-x-full');
-            document.getElementById('filterSidebar').classList.add('translate-x-0');
+            document.getElementById('filterSidebar').classList.remove('translate-y-full');
             document.getElementById('filterOverlay').classList.remove('hidden');
             document.body.classList.add('overflow-hidden');
         }
 
         function closeFilterDrawer() {
-            document.getElementById('filterSidebar').classList.add('-translate-x-full');
-            document.getElementById('filterSidebar').classList.remove('translate-x-0');
+            document.getElementById('filterSidebar').classList.add('translate-y-full');
             document.getElementById('filterOverlay').classList.add('hidden');
             document.body.classList.remove('overflow-hidden');
         }
@@ -410,7 +457,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
         // Close drawer with Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeFilterDrawer();
+            if (e.key === 'Escape') { closeFilterDrawer(); closeAddToCartModal(); }
         });
 
         // ── Collect filters into a URLSearchParams ────────────────────────────────────
@@ -443,13 +490,12 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             let html = '';
             for (let i = 0; i < n; i++) {
                 html += `
-    <div class="bg-white rounded-xl md:rounded-2xl overflow-hidden border border-gray-100 animate-pulse">
-        <div class="aspect-square bg-gray-200 rounded-t-xl md:rounded-t-2xl"></div>
-        <div class="p-2 md:p-3 space-y-2">
-            <div class="h-4 bg-gray-200 rounded" style="width:500px;"></div>
-            <div class="h-3 bg-gray-200 rounded" style="width:500px;"></div>
-            <div class="h-5 bg-gray-200 rounded" style="width:500px;"></div>
-            <div class="h-9 bg-gray-200 rounded-lg w-full mt-2"></div>
+    <div class="animate-pulse">
+        <div class="aspect-square bg-gray-200 rounded-xl"></div>
+        <div class="pt-3 space-y-2">
+            <div class="h-3.5 bg-gray-200 rounded w-11/12"></div>
+            <div class="h-3.5 bg-gray-200 rounded w-2/3"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/3 mt-3"></div>
         </div>
     </div>`;
             }
@@ -465,7 +511,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             const area = document.getElementById('products-area');
             const spinner = document.getElementById('searchSpinner');
 
-            const MIN_SKELETON_TIME = 2000; // 2 seconds
+            const MIN_SKELETON_TIME = 250; // maikli lang para hindi kumislap
             const skeletonStart = Date.now();
 
             if (showSkeleton) {
@@ -497,6 +543,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
                 area.innerHTML = data.html;
                 startPromoTimers();
+                updateResultsUi(data);
 
                 const paginationArea = document.getElementById('pagination-area');
                 paginationArea.innerHTML = data.pagination ?? '';
@@ -514,9 +561,10 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
                 });
             } catch (err) {
                 if (err.name === 'AbortError') return;   // superseded request — ignore
-                area.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400">
-    <i class="fa-solid fa-triangle-exclamation text-4xl mb-3 block"></i>
-    <p>Failed to load products. Please refresh.</p></div>`;
+                area.innerHTML = `<div class="col-span-full text-center py-16 bg-white border border-gray-200 rounded-lg">
+    <i class="fa-solid fa-triangle-exclamation text-3xl text-gray-300"></i>
+    <p class="text-sm font-semibold text-gray-900 mt-3">Failed to load products</p>
+    <p class="text-xs text-gray-500 mt-1">Please refresh the page.</p></div>`;
             } finally {
                 spinner.classList.add('hidden');
             }
@@ -555,6 +603,92 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             fetchProducts(1);
         });
 
+        // ── Filter sections (accordion) + selected counts ─────────────────────────
+        document.querySelectorAll('.nh-filter-sec').forEach(sec => {
+            const head = sec.querySelector('.nh-filter-head');
+            // Closed by default; auto-open only if this section already has an active filter
+            const hasActive = sec.querySelector('input[type="checkbox"]:checked') ||
+                Array.from(sec.querySelectorAll('input[type="number"]')).some(i => i.value !== '');
+            if (hasActive) { sec.dataset.open = '1'; head.setAttribute('aria-expanded', 'true'); }
+            head.addEventListener('click', () => {
+                const open = sec.dataset.open !== '1';
+                sec.dataset.open = open ? '1' : '0';
+                head.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        });
+
+        function updateSectionCounts() {
+            document.querySelectorAll('.nh-filter-sec').forEach(sec => {
+                const badge = sec.querySelector('.nh-sec-count');
+                if (!badge) return;
+                const n = sec.querySelectorAll('input[type="checkbox"]:checked').length;
+                badge.textContent = n;
+                badge.classList.toggle('hidden', n === 0);
+                badge.classList.toggle('inline-flex', n > 0);
+            });
+        }
+        document.querySelectorAll('.nh-filter-sec input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSectionCounts));
+        updateSectionCounts();
+
+        // ── Results label, active filter count & chips ─────────────────────────────
+        function updateResultsUi(data) {
+            const label = document.getElementById('resultsLabel');
+            const total = data && (data.total ?? data.total_products ?? data.count);
+            if (label) label.textContent = (total !== undefined && total !== null)
+                ? `${Number(total).toLocaleString()} product${Number(total) === 1 ? '' : 's'}`
+                : 'Products';
+            renderActiveChips();
+        }
+
+        function renderActiveChips() {
+            const chips = [];
+            const add = (text, clear) => chips.push({ text, clear });
+
+            if (document.getElementById('filter_sale_only').checked)
+                add('On sale', () => { document.getElementById('filter_sale_only').checked = false; });
+            ['categories', 'colors', 'sizes'].forEach(group => {
+                document.querySelectorAll(`input[name="${group}[]"]:checked`).forEach(el =>
+                    add(el.value, () => { el.checked = false; }));
+            });
+            const minP = document.getElementById('filter_min_price').value.trim();
+            const maxP = document.getElementById('filter_max_price').value.trim();
+            if (minP || maxP) add(`₱${minP || 0} – ${maxP ? '₱' + maxP : 'up'}`, () => {
+                document.getElementById('filter_min_price').value = '';
+                document.getElementById('filter_max_price').value = '';
+            });
+
+            const wrap = document.getElementById('activeChips');
+            wrap.innerHTML = '';
+            chips.forEach(c => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'inline-flex items-center gap-2 h-8 px-3 rounded-full bg-white border border-gray-300 text-xs font-medium text-gray-800 hover:border-gray-900';
+                b.innerHTML = '<span></span><i class="fa-solid fa-xmark text-[10px] text-gray-500"></i>';
+                b.firstChild.textContent = c.text;
+                b.onclick = () => { c.clear(); currentPage = 1; fetchProducts(1); };
+                wrap.appendChild(b);
+            });
+            if (chips.length) {
+                const clr = document.createElement('button');
+                clr.type = 'button';
+                clr.className = 'text-xs font-medium text-gray-600 hover:text-gray-900 underline underline-offset-2 ml-1';
+                clr.textContent = 'Clear all';
+                clr.onclick = () => document.getElementById('clearFiltersBtn').click();
+                wrap.appendChild(clr);
+            }
+            wrap.classList.toggle('hidden', chips.length === 0);
+            wrap.classList.toggle('flex', chips.length > 0);
+            updateSectionCounts();
+
+            ['activeFilterCount', 'activeFilterCountMobile'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = chips.length;
+                el.classList.toggle('hidden', chips.length === 0);
+                el.classList.toggle('inline-flex', chips.length > 0);
+            });
+        }
+
         // ── Initial load ──────────────────────────────────────────────────────────────
         fetchProducts(currentPage, true);
 
@@ -569,6 +703,13 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
         // mainproductview.php: single "Default" color na may single "Default"
         // variant lang (set ng specialist-insertproduct-handler.php kapag
         // "Simple product — no colors or sizes" ang checkbox na na-tick).
+        // "Sizes only" product: isang color na "Default" pero maraming size
+        function isSizesOnlyData(product) {
+            return !!product && Array.isArray(product.colors)
+                && product.colors.length === 1 && product.colors[0].colorname === 'Default'
+                && !isSimpleProductData(product);
+        }
+
         function isSimpleProductData(product) {
             return !!product
                 && Array.isArray(product.colors)
@@ -588,13 +729,13 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             document.getElementById('modalProductName').textContent = product.name;
             const imgWrap = document.getElementById('modalProductImage');
             imgWrap.innerHTML = product.image
-                ? `<img src="${product.image}" class="w-full h-full object-contain p-1" loading="lazy">`
-                : `<i class="fa-solid fa-image text-2xl text-gray-200"></i>`;
+                ? `<img src="${product.image}" alt="" class="w-full h-full object-cover" loading="lazy">`
+                : `<i class="fa-regular fa-image text-2xl text-gray-300"></i>`;
 
             document.getElementById('modalProductPrice').textContent = '';
             document.getElementById('modalStockLabel').textContent = '';
             document.getElementById('modalSizeOptions').innerHTML =
-                '<span class="text-xs text-gray-400">Select a color first</span>';
+                '<span class="text-xs text-gray-500">Select a color first</span>';
             document.getElementById('modalQtyInput').value = 1;
             document.getElementById('modalAddBtn').disabled = true;
             hideModalPromoTimer();
@@ -602,18 +743,25 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             // Simple product: itago ang Color/Size pickers, auto-select ang
             // hidden Default/Default variant — kagaya sa mainproductview.php.
             const simple = isSimpleProductData(product);
-            document.getElementById('modalColorSection')?.classList.toggle('hidden', simple);
+            const sizesOnly = isSizesOnlyData(product);
+            document.getElementById('modalColorSection')?.classList.toggle('hidden', simple || sizesOnly);
             document.getElementById('modalSizeSection')?.classList.toggle('hidden', simple);
+
+            const viewLink = document.getElementById('modalViewLink');
+            if (viewLink) viewLink.href = <?= json_encode(BASE_URL . '/mainproductview?id=') ?> + encodeURIComponent(productId);
 
             renderColorOptions(product.colors);
 
             const modal = document.getElementById('addToCartModal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
 
             if (simple) {
                 selectColor(product.colors[0].id);
                 selectSize(product.colors[0].variants[0].id);
+            } else if (sizesOnly) {
+                selectColor(product.colors[0].id);
             }
         }
 
@@ -621,6 +769,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             const modal = document.getElementById('addToCartModal');
             modal.classList.add('hidden');
             modal.classList.remove('flex');
+            document.body.style.overflow = '';
             hideModalPromoTimer();
         }
 
@@ -639,7 +788,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.textContent = color.colorname;
-                btn.className = 'color-option px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:border-amber-400 transition';
+                btn.className = 'color-option h-9 px-3.5 text-sm rounded-md border border-gray-300 bg-white text-gray-800 hover:border-gray-900 transition';
                 btn.dataset.colorId = color.id;
                 btn.onclick = () => selectColor(color.id);
                 wrap.appendChild(btn);
@@ -652,9 +801,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
             document.querySelectorAll('#modalColorOptions .color-option').forEach(btn => {
                 const sel = parseInt(btn.dataset.colorId) === colorId;
-                btn.classList.toggle('border-amber-500', sel);
-                btn.classList.toggle('bg-amber-50', sel);
-                btn.classList.toggle('text-amber-600', sel);
+                btn.classList.toggle('opt-selected', sel);
             });
 
             const product = PRODUCT_DATA[currentModalState.productId];
@@ -668,7 +815,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             hideModalPromoTimer(); // walang size pa — itago muna ang timer
 
             if (!color || color.variants.length === 0) {
-                sizeWrap.innerHTML = '<span class="text-xs text-gray-400">No sizes available</span>';
+                sizeWrap.innerHTML = '<span class="text-xs text-gray-500">No sizes available</span>';
                 return;
             }
             color.variants.forEach(v => {
@@ -677,7 +824,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
                 btn.type = 'button';
                 btn.textContent = v.sizename + (oos ? ' (Out of stock)' : '');
                 btn.disabled = oos;
-                btn.className = 'size-option px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:border-amber-400 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-200';
+                btn.className = 'size-option h-9 px-3.5 text-sm rounded-md border border-gray-300 bg-white text-gray-800 hover:border-gray-900 transition disabled:opacity-40 disabled:line-through disabled:cursor-not-allowed disabled:hover:border-gray-300';
                 btn.dataset.variantId = v.id;
                 btn.onclick = () => selectSize(v.id);
                 sizeWrap.appendChild(btn);
@@ -689,9 +836,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
             document.querySelectorAll('#modalSizeOptions .size-option').forEach(btn => {
                 const sel = parseInt(btn.dataset.variantId) === variantId;
-                btn.classList.toggle('border-amber-500', sel);
-                btn.classList.toggle('bg-amber-50', sel);
-                btn.classList.toggle('text-amber-600', sel);
+                btn.classList.toggle('opt-selected', sel);
             });
 
             const product = PRODUCT_DATA[currentModalState.productId];
@@ -705,7 +850,7 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
 
             const priceLabel = document.getElementById('modalProductPrice');
             priceLabel.innerHTML = variant.discount > 0
-                ? `₱${formatPrice(finalPrice)} <span class="text-xs text-gray-400 line-through ml-1">₱${formatPrice(variant.price)}</span> <span class="text-xs text-red-400 font-semibold ml-1">-${variant.discount}%</span>`
+                ? `<span class="text-red-600">₱${formatPrice(finalPrice)}</span> <span class="text-xs font-normal text-gray-400 line-through ml-1">₱${formatPrice(variant.price)}</span> <span class="text-[11px] font-bold text-white bg-red-600 px-1.5 py-0.5 rounded ml-1 align-middle">-${variant.discount}%</span>`
                 : `₱${formatPrice(finalPrice)}`;
 
             // ─── Promo countdown — para sa EKSAKTONG napiling variant lang ───
@@ -778,6 +923,21 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             input.value = Math.max(1, Math.min(parseInt(input.value || '1') + delta, max));
         }
 
+        // Typed quantity: itinatama sa 1..stock pag-alis sa field
+        (function () {
+            const input = document.getElementById('modalQtyInput');
+            if (!input) return;
+            input.addEventListener('blur', () => {
+                const max = parseInt(input.max) || 99;
+                const v = parseInt(input.value, 10);
+                input.value = isNaN(v) ? 1 : Math.max(1, Math.min(v, max));
+            });
+            input.addEventListener('keydown', e => {
+                if (['e', 'E', '+', '-', '.', ','].includes(e.key)) e.preventDefault();
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            });
+        })();
+
         async function confirmAddToCart() {
             const { productId, colorId, variantId } = currentModalState;
             if (!productId || !colorId || !variantId) {
@@ -816,7 +976,9 @@ $priceHi = floatval($priceBounds['hi'] ?? 0);
             const toast = document.getElementById('toast');
             document.getElementById('toast-icon').innerHTML = type === 'success'
                 ? '<i class="fa-solid fa-circle-check text-green-500"></i>'
-                : '<i class="fa-solid fa-circle-exclamation text-red-500"></i>';
+                : type === 'warning'
+                    ? '<i class="fa-solid fa-triangle-exclamation text-amber-500"></i>'
+                    : '<i class="fa-solid fa-circle-exclamation text-red-500"></i>';
             document.getElementById('toast-msg').textContent = msg;
 
             toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
@@ -845,7 +1007,7 @@ document.getElementById('products-area').addEventListener('click', function (e) 
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
-                showToast('error', data.message || 'May error, subukan ulit.');
+                showToast('error', data.message || 'Something went wrong. Please try again.');
                 return;
             }
             if (data.saved) {
@@ -856,7 +1018,7 @@ document.getElementById('products-area').addEventListener('click', function (e) 
                 icon.classList.add('fa-regular', 'text-gray-500');
             }
         })
-        .catch(() => showToast('error', 'May error, subukan ulit.'));
+        .catch(() => showToast('error', 'Something went wrong. Please try again.'));
 });
     </script>
 

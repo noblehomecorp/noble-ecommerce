@@ -13,21 +13,21 @@ $promoCount = count($promotions);
 
         <!-- Promo slider -->
         <div id="promoSlider"
-            class="group relative w-full aspect-[2/1] md:aspect-[2.7/1] rounded-xl overflow-hidden bg-gray-900">
+            class="group relative w-full <?= $promoCount > 0 ? 'nh-hero-auto' : 'aspect-[2/1] md:aspect-[2.7/1]' ?> rounded-xl overflow-hidden bg-gray-900">
 
             <?php if ($promoCount > 0): ?>
-                <div id="promoTrack" class="flex h-full"
+                <div id="promoTrack" class="flex items-start"
                     style="transition: transform 550ms cubic-bezier(.4,0,.2,1);">
                     <?php foreach ($promotions as $i => $promo): ?>
                         <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $promo['category_id'] ?>"
-                            class="relative shrink-0 w-full h-full block" data-slide-link="<?= $i ?>"
+                            class="relative shrink-0 w-full block" data-slide-link="<?= $i ?>"
                             aria-label="<?= htmlspecialchars($promo['title']) ?>">
                             <?php if (!empty($promo['banner_image'])): ?>
                                 <img src="<?= BASE_URL ?>/uploads/promotions/<?= htmlspecialchars($promo['banner_image']) ?>"
                                     alt="<?= htmlspecialchars($promo['title']) ?>"
-                                    class="w-full h-full object-cover" <?= $i === 0 ? '' : 'loading="lazy"' ?>>
+                                    class="nh-hero-img block w-full h-auto" <?= $i === 0 ? '' : 'loading="lazy"' ?>>
                             <?php else: ?>
-                                <div class="w-full h-full flex items-center justify-center bg-gray-800 text-white text-xl font-bold">
+                                <div class="w-full aspect-[2/1] md:aspect-[2.7/1] flex items-center justify-center bg-gray-800 text-white text-xl font-bold">
                                     <?= htmlspecialchars($promo['title']) ?>
                                 </div>
                             <?php endif; ?>
@@ -145,6 +145,50 @@ $promoCount = count($promotions);
     </div>
 </div>
 
+<?php if ($promoCount > 0): ?>
+    <style>
+        /* Height follows the current banner's real size; animates when the slide changes */
+        #promoSlider.nh-hero-auto { transition: height 350ms ease; min-height: 120px; }
+    </style>
+    <script>
+        (function () {
+            const slider = document.getElementById('promoSlider');
+            const track = document.getElementById('promoTrack');
+            if (!slider || !track) return;
+
+            const slides = Array.from(track.children);
+            let current = 0;
+
+            // Fit slider height to the active slide (image's natural aspect ratio)
+            function fit() {
+                const slide = slides[current];
+                if (!slide) return;
+                const img = slide.querySelector('img');
+                let h;
+                if (img && img.naturalWidth) {
+                    h = slider.clientWidth * (img.naturalHeight / img.naturalWidth);
+                } else {
+                    h = slide.offsetHeight || slider.clientWidth / 2.7;
+                }
+                slider.style.height = Math.round(h) + 'px';
+            }
+
+            slides.forEach((slide, i) => {
+                const img = slide.querySelector('img');
+                if (!img) return;
+                if (img.complete && img.naturalWidth) { if (i === current) fit(); }
+                else img.addEventListener('load', () => { if (i === current) fit(); });
+                // Load the other banners early so their size is ready before they slide in
+                if (i !== 0) img.loading = 'eager';
+            });
+
+            slider.addEventListener('nh:slide', e => { current = e.detail; fit(); });
+            window.addEventListener('resize', fit);
+            fit();
+        })();
+    </script>
+<?php endif; ?>
+
 <?php if ($promoCount > 1): ?>
     <script>
         (function () {
@@ -167,6 +211,7 @@ $promoCount = count($promotions);
                     d.classList.toggle('w-1.5', !on);
                     d.classList.toggle('bg-white/60', !on);
                 });
+                slider.dispatchEvent(new CustomEvent('nh:slide', { detail: current }));
             }
 
             function startAuto() { timer = setInterval(() => go(current + 1), 5000); }

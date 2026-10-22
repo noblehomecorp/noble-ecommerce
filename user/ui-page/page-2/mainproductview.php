@@ -267,6 +267,18 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
 
+        /* Walang up/down arrows sa typed quantity */
+        .nh-qty-input::-webkit-outer-spin-button,
+        .nh-qty-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .nh-qty-input {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
         .qty-btn:disabled {
             opacity: 0.35;
             cursor: not-allowed;
@@ -493,8 +505,10 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
                                             class="qty-btn w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition">
                                             <i class="fa-solid fa-minus text-xs"></i>
                                         </button>
-                                        <span id="qty-display"
-                                            class="w-12 h-10 flex items-center justify-center border-x border-gray-300 text-sm font-semibold text-gray-900 select-none">1</span>
+                                        <input id="qty-display" type="number" inputmode="numeric" min="1" step="1" value="1"
+                                            aria-label="Quantity" disabled
+                                            class="nh-qty-input w-16 h-10 border-x border-gray-300 text-center text-sm font-semibold text-gray-900 bg-white
+                                                   focus:outline-none focus:bg-orange-50/40 disabled:bg-gray-50 disabled:text-gray-400">
                                         <button type="button" onclick="changeQty(1)" id="qty-plus"
                                             class="qty-btn w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition">
                                             <i class="fa-solid fa-plus text-xs"></i>
@@ -680,6 +694,12 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
                     selectColor(0);
                     selectSize('Default');
                 }
+            } else if (isSizesOnlyProduct) {
+                // "Sizes only" product: isang nakatagong color na "Default" — size lang ang pipiliin
+                document.getElementById('color-section')?.classList.add('hidden');
+                const hint = document.getElementById('select-hint');
+                if (hint) hint.innerHTML = '<i class="fa-solid fa-circle-info mr-1 text-gray-400"></i> Select a size to continue.';
+                selectColor(0);
             } else {
                 showDefaultPreview(); // price/stock preview lang — walang selected na color/size
             }
@@ -739,6 +759,7 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
 
         const colors = <?= json_encode(array_values($colors), JSON_HEX_TAG) ?>;
         const isSimpleProduct = <?= json_encode($isSimpleProduct) ?>;
+        const isSizesOnlyProduct = !isSimpleProduct && colors.length === 1 && colors[0].colorname === 'Default';
         const uploadUrl = <?= json_encode($uploadUrl) ?>;
         const addCartUrl = <?= json_encode(BASE_URL . '/cartadd') ?>;
         const cartVariantQtyUrl = <?= json_encode(BASE_URL . '/cart-variant-qty') ?>;
@@ -933,7 +954,7 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
         function hideQtySection() {
             selectedQty = 1;
             const disp = document.getElementById('qty-display');
-            if (disp) disp.textContent = '1';
+            if (disp) { disp.value = '1'; disp.disabled = true; }
             const lbl = document.getElementById('qty-max-label');
             if (lbl) lbl.textContent = '';
             const minus = document.getElementById('qty-minus');
@@ -957,6 +978,49 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
             updateFinalPrice();
         }
 
+        // ─── Typed quantity ─────────────────────────────────────────────
+        // Habang nagta-type: ina-update agad ang total kapag valid ang numero.
+        // Pag-alis sa field (blur) o Enter: itinatama sa pinakamalapit na pwedeng value (min/max).
+        function commitTypedQty(finalize) {
+            const disp = document.getElementById('qty-display');
+            if (!disp || disp.disabled) return;
+            const max = getEffectiveMaxQty();
+            const floor = productQtyMin > 1 ? productQtyMin : 1;
+            const raw = parseInt(disp.value, 10);
+
+            if (isNaN(raw)) {
+                if (finalize) { selectedQty = floor; disp.value = floor; }
+                else return;
+            } else {
+                const clamped = Math.max(floor, Math.min(raw, max));
+                selectedQty = clamped;
+                if (finalize && clamped !== raw) {
+                    disp.value = clamped;
+                    if (raw > max) showToast('warning', `Only ${max} available for this item.`);
+                    else if (raw < floor) showToast('warning', `Minimum order is ${floor} pcs.`);
+                }
+            }
+            if (finalize) refreshQtyUI();
+            else {
+                document.getElementById('qty-minus').disabled = selectedQty <= floor;
+                document.getElementById('qty-plus').disabled = selectedQty >= max;
+            }
+            refreshDiscountHint();
+            updateFinalPrice();
+        }
+
+        (function () {
+            const disp = document.getElementById('qty-display');
+            if (!disp) return;
+            disp.addEventListener('input', () => commitTypedQty(false));
+            disp.addEventListener('blur', () => commitTypedQty(true));
+            disp.addEventListener('focus', () => disp.select());
+            disp.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); commitTypedQty(true); disp.blur(); }
+                if (['e', 'E', '+', '-', '.', ','].includes(e.key)) e.preventDefault();
+            });
+        })();
+
         function refreshQtyUI() {
             const max = getEffectiveMaxQty();
             const floor = productQtyMin > 1 ? productQtyMin : 1;
@@ -968,7 +1032,12 @@ $PRICE_CLS = 'text-3xl font-bold tracking-tight text-gray-900';
             const minNote = document.getElementById('qty-min-note');
             const minNoteText = document.getElementById('qty-min-note-text');
 
-            if (disp) disp.textContent = selectedQty;
+            if (disp) {
+                disp.disabled = false;
+                disp.min = floor;
+                disp.max = max;
+                if (document.activeElement !== disp) disp.value = selectedQty;
+            }
             if (minus) minus.disabled = selectedQty <= floor;
             if (plus) plus.disabled = selectedQty >= max;
             if (lbl) lbl.textContent = max > floor ? `${max} available` : '';

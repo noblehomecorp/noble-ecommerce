@@ -1,4 +1,5 @@
 <?php
+// product-linkingmanagement.php
 include ROOT_PATH . '/network/connect.php';
 include ROOT_PATH . '/admin/authentication/index-authguard.php';
 include ROOT_PATH . '/admin/authentication/index-roles.php';
@@ -45,6 +46,8 @@ while ($row = $linkResult->fetch_assoc()) {
         $productSubIds[$row['product_id']][] = (int) $row['subcategory_id'];
     }
 }
+
+$unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,113 +55,178 @@ while ($row = $linkResult->fetch_assoc()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product Linking Management</title>
+    <title>Product Linking — NobleHome</title>
     <?php include ROOT_PATH . '/link/top.php'; ?>
-    <?php include ROOT_PATH . '/admin/navigation/navbar.php'; ?>
+    <style>
+        .nh-thin-scroll { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        .nh-thin-scroll::-webkit-scrollbar { width: 6px; }
+        .nh-thin-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+        .nh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
 </head>
 
-<body class="bg-slate-100">
-    <div class="ml-60 min-h-screen bg-slate-100 flex">
+<body class="bg-gray-50 text-gray-900">
+    <?php include ROOT_PATH . '/admin/navigation/navbar.php'; ?>
 
-        <!-- Sidebar filters -->
-        <aside class="w-64 shrink-0 bg-white border-r border-slate-200 p-5 min-h-screen">
-            <div class="flex items-center justify-between mb-4">
-                <p class="text-xs font-bold text-slate-800 tracking-widest">TARGET SUBCATEGORIES</p>
-                <button type="button" onclick="clearSubSelection()"
-                    class="text-xs font-semibold text-amber-600 hover:text-amber-700">Clear</button>
+    <div class="ml-60 min-h-screen bg-gray-50 px-8 py-7 pb-28">
+
+        <!-- Header -->
+        <div class="flex items-end justify-between gap-4 flex-wrap mb-6">
+            <div>
+                <nav class="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5" aria-label="Breadcrumb">
+                    <span>Product Specialist</span>
+                    <span class="text-gray-300">/</span>
+                    <span class="text-gray-900 font-medium">Product Linking</span>
+                </nav>
+                <h1 class="text-xl font-bold tracking-tight text-gray-900">Link Products</h1>
+                <p class="text-xs text-gray-500 mt-1">
+                    <?= count($products) ?> products
+                    <?php if ($unlinkedCount): ?>
+                        <span class="text-gray-300 mx-1">·</span>
+                        <span class="text-red-600 font-semibold"><?= $unlinkedCount ?> without a subcategory</span>
+                    <?php endif; ?>
+                </p>
             </div>
+            <div class="relative w-full sm:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                <input type="text" id="productSearch" placeholder="Search products…" oninput="renderProducts()"
+                    class="w-full pl-8 pr-3 h-10 rounded-md border border-gray-300 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5">
+            </div>
+        </div>
 
-            <label class="flex items-center justify-between mb-4 cursor-pointer">
-                <span class="text-xs font-semibold text-red-500">UNLINKED PRODUCTS ONLY</span>
-                <input type="checkbox" id="unlinkedOnly" onchange="renderProducts()"
-                    class="w-4 h-4 accent-red-500">
-            </label>
+        <div class="grid grid-cols-[260px_1fr] gap-5 items-start">
 
-            <div class="border-t border-slate-100 pt-4">
-                <?php foreach ($categories as $catId => $cat): ?>
-                    <?php if (empty($cat['subs']))
-                        continue; ?>
-                    <div class="mb-3">
-                        <button type="button" onclick="toggleCatFilter(<?= $catId ?>)"
-                            class="w-full flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-                            <?= htmlspecialchars($cat['name']) ?>
-                            <i class="fa-solid fa-chevron-down text-[10px]" id="filter-chevron-<?= $catId ?>"></i>
-                        </button>
-                        <div id="filter-body-<?= $catId ?>" class="space-y-1.5 pl-1">
-                            <?php foreach ($cat['subs'] as $sub): ?>
-                                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                                    <input type="checkbox" class="sub-filter w-4 h-4 accent-amber-500"
-                                        value="<?= $sub['id'] ?>" onchange="onSubFilterChange()">
-                                    <?= htmlspecialchars($sub['name']) ?>
-                                </label>
-                            <?php endforeach; ?>
-                        </div>
+            <!-- ================= SUBCATEGORY PICKER ================= -->
+            <aside class="bg-white rounded-lg border border-gray-200 sticky top-6 flex flex-col max-h-[calc(100vh-48px)] overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center">1</span>
+                        <p class="text-xs font-semibold text-gray-900">Target subcategories</p>
                     </div>
-                <?php endforeach; ?>
-            </div>
-        </aside>
-
-        <!-- Main content -->
-        <div class="flex-1 p-6 pb-28">
-            <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
-                <h1 class="text-2xl font-bold text-slate-800">Link Products</h1>
-                <div class="relative w-full sm:w-80">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
-                    <input type="text" id="productSearch" placeholder="Search products..."
-                        class="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
-                        oninput="renderProducts()">
+                    <button type="button" onclick="clearSubSelection()"
+                        class="text-[11px] font-semibold text-gray-500 hover:text-gray-900">Clear</button>
                 </div>
-            </div>
 
-            <p id="pickSubHint" class="text-sm text-slate-400 italic mb-4">
-                Tick one or more subcategories on the left, then check the products you want to link to them.
-            </p>
+                <label class="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 shrink-0">
+                    <span class="flex items-center gap-2 text-xs font-medium text-gray-700">
+                        <i class="fa-solid fa-link-slash text-[11px] text-red-500"></i> Unlinked products only
+                    </span>
+                    <input type="checkbox" id="unlinkedOnly" onchange="renderProducts()" class="w-4 h-4 accent-red-600">
+                </label>
 
-            <!-- Product grid -->
-            <div id="productGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
-            <p id="noProductsMsg" class="hidden text-sm text-slate-400 italic mt-4">No products match your search/filter.</p>
+                <div class="flex-1 overflow-y-auto nh-thin-scroll px-2 py-2">
+                    <?php foreach ($categories as $catId => $cat): ?>
+                        <?php if (empty($cat['subs'])) continue; ?>
+                        <div class="mb-1">
+                            <button type="button" onclick="toggleCatFilter(<?= (int) $catId ?>)"
+                                class="w-full flex items-center justify-between px-2 py-2 rounded-md text-[11px] font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-50">
+                                <span class="truncate"><?= htmlspecialchars($cat['name']) ?></span>
+                                <i class="fa-solid fa-chevron-down text-[9px] transition-transform" id="filter-chevron-<?= (int) $catId ?>"></i>
+                            </button>
+                            <div id="filter-body-<?= (int) $catId ?>" class="pb-1">
+                                <?php foreach ($cat['subs'] as $sub): ?>
+                                    <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-xs text-gray-700 cursor-pointer hover:bg-gray-50 has-[:checked]:bg-orange-50 has-[:checked]:text-orange-800 has-[:checked]:font-semibold">
+                                        <input type="checkbox" class="sub-filter w-4 h-4 accent-orange-600 shrink-0"
+                                            value="<?= (int) $sub['id'] ?>" onchange="onSubFilterChange()">
+                                        <span class="truncate"><?= htmlspecialchars($sub['name']) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </aside>
+
+            <!-- ================= PRODUCTS ================= -->
+            <section class="min-w-0">
+                <div id="pickSubHint" class="flex items-start gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4">
+                    <i class="fa-solid fa-circle-info text-gray-400 text-sm mt-0.5"></i>
+                    <div class="text-xs text-gray-600 leading-relaxed">
+                        <span class="font-semibold text-gray-900">How it works:</span>
+                        ① Select one or more subcategories on the left,
+                        ② click the products you want to link,
+                        ③ press <span class="font-semibold text-gray-900">Apply</span> at the bottom.
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center">2</span>
+                        <p class="text-xs font-semibold text-gray-900">Select products</p>
+                    </div>
+                    <p id="visibleLabel" class="text-[11px] text-gray-500"></p>
+                </div>
+
+                <div id="productGrid" class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+                <div id="noProductsMsg" class="hidden bg-white border border-gray-200 rounded-lg py-12 text-center">
+                    <i class="fa-solid fa-box-open text-2xl text-gray-300"></i>
+                    <p class="text-xs text-gray-500 mt-2">No products match your search or filter.</p>
+                </div>
+            </section>
         </div>
 
         <!-- Sticky apply bar -->
         <div id="applyBar"
-            class="hidden fixed bottom-0 left-60 right-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-40">
-            <p class="text-sm text-slate-600">
-                <span id="selectedCount" class="font-bold text-slate-800">0</span> product(s) selected →
-                <span id="selectedSubCount" class="font-bold text-amber-600">0</span> subcategor(y/ies) checked
-            </p>
-            <button type="button" onclick="applyLinks()"
-                class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-5 py-2 rounded-lg flex items-center gap-2">
-                <i class="fa-solid fa-check"></i> Apply
-            </button>
+            class="hidden fixed bottom-0 left-60 right-0 bg-white border-t border-gray-200 px-8 py-3 flex items-center justify-between shadow-[0_-4px_16px_rgba(17,24,39,0.06)] z-40">
+            <div class="flex items-center gap-3 text-xs text-gray-600">
+                <span class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-gray-100">
+                    <i class="fa-solid fa-box text-[10px] text-gray-500"></i>
+                    <span id="selectedCount" class="font-bold text-gray-900">0</span> product(s)
+                </span>
+                <i class="fa-solid fa-arrow-right text-[10px] text-gray-400"></i>
+                <span class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-orange-50">
+                    <i class="fa-solid fa-tags text-[10px] text-orange-600"></i>
+                    <span id="selectedSubCount" class="font-bold text-orange-700">0</span> subcategor(y/ies)
+                </span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="clearProductSelection()"
+                    class="h-9 px-4 text-xs font-semibold rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" id="applyBtn" onclick="applyLinks()"
+                    class="h-9 px-5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-md flex items-center gap-2">
+                    <i class="fa-solid fa-check"></i> Apply
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Toast -->
-    <div id="toast" class="hidden fixed bottom-24 right-6 bg-slate-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50"></div>
+    <div id="toast"
+        class="hidden fixed bottom-20 right-6 bg-gray-900 text-white text-xs font-medium px-4 py-2.5 rounded-md shadow-lg z-50 max-w-sm"></div>
 
     <!-- Linked subcategories modal -->
-    <div id="tagsModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeTagsModal()">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                <div>
-                    <p class="text-xs font-bold text-slate-400 tracking-widest">LINKED SUBCATEGORIES</p>
-                    <p id="tagsModalProductName" class="text-base font-bold text-slate-800"></p>
+    <div id="tagsModal" class="hidden fixed inset-0 bg-gray-900/40 z-50 flex items-center justify-center p-4"
+        onclick="if(event.target===this) closeTagsModal()">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="h-1 shrink-0" style="background: repeating-linear-gradient(-45deg,#f97316 0 8px,#111827 8px 16px);"></div>
+            <div class="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+                <div class="min-w-0">
+                    <p class="text-[11px] font-semibold text-gray-500">Linked subcategories</p>
+                    <p id="tagsModalProductName" class="text-sm font-bold text-gray-900 truncate"></p>
                 </div>
-                <button type="button" onclick="closeTagsModal()" class="text-slate-400 hover:text-slate-600">
-                    <i class="fa-solid fa-xmark text-lg"></i>
+                <button type="button" onclick="closeTagsModal()" aria-label="Close"
+                    class="w-8 h-8 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             <div id="tagsModalBody" class="p-5 overflow-y-auto flex flex-wrap content-start gap-2"></div>
+            <p class="px-5 pb-4 text-[11px] text-gray-500">Click ✕ to remove a link.</p>
         </div>
     </div>
 
     <script>
         // ---- Data from PHP ----
-        const products = <?= json_encode($products) ?>;                    // [{id, name, imageproduct}]
-        const productSubIds = <?= json_encode($productSubIds) ?>;           // {product_id: [sub_id,...]}
-        const subNames = <?= json_encode($subNameLookup) ?>;                // {sub_id: name}
+        const products = <?= json_encode($products, JSON_HEX_TAG) ?>;              // [{id, name, imageproduct}]
+        const productSubIds = <?= json_encode($productSubIds) ?>;                   // {product_id: [sub_id,...]}
+        const subNames = <?= json_encode($subNameLookup, JSON_HEX_TAG) ?>;          // {sub_id: name}
         const baseUrl = '<?= rtrim(BASE_URL, '/') ?>';
         const selectedProducts = new Set();
+
+        function escHtml(str) {
+            return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
 
         function resolveImageSrc(path) {
             if (!path) return null;
@@ -174,12 +242,12 @@ while ($row = $linkResult->fetch_assoc()) {
             toast.textContent = msg;
             toast.classList.remove('hidden');
             clearTimeout(window._toastTimer);
-            window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 2500);
+            window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 2800);
         }
 
         function toggleCatFilter(catId) {
             document.getElementById('filter-body-' + catId).classList.toggle('hidden');
-            document.getElementById('filter-chevron-' + catId).classList.toggle('rotate-180');
+            document.getElementById('filter-chevron-' + catId).classList.toggle('-rotate-90');
         }
 
         function getCheckedSubIds() {
@@ -191,13 +259,18 @@ while ($row = $linkResult->fetch_assoc()) {
             onSubFilterChange();
         }
 
+        function clearProductSelection() {
+            selectedProducts.clear();
+            renderProducts();
+            updateApplyBar();
+        }
+
         function onSubFilterChange() {
             renderProducts();
             updateApplyBar();
         }
 
         // ---- Validation helpers ----
-        // Returns which of the currently-checked subcategories a product is ALREADY linked to
         function alreadyLinkedChecked(productId) {
             const checkedSubs = getCheckedSubIds().map(Number);
             const linked = productSubIds[productId] || [];
@@ -210,21 +283,21 @@ while ($row = $linkResult->fetch_assoc()) {
             return alreadyLinkedChecked(productId).length === checkedSubs.length;
         }
 
-        // Compact summary shown on the card itself (no more crowded pill lists)
+        // Compact summary sa card
         function tagSummaryFor(productId) {
             const subs = productSubIds[productId] || [];
             if (subs.length === 0) {
-                return '<span class="text-[11px] text-red-500 font-semibold">No category yet</span>';
+                return '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600"><i class="fa-solid fa-link-slash text-[10px]"></i> No subcategory yet</span>';
             }
-            const firstName = subNames[subs[0]] || subs[0];
+            const firstName = escHtml(subNames[subs[0]] || subs[0]);
             const label = subs.length === 1
                 ? firstName
-                : `${firstName} <span class="text-slate-400 font-normal">+${subs.length - 1} more</span>`;
+                : `${firstName} <span class="text-gray-400 font-normal">+${subs.length - 1}</span>`;
             return `
-                <button type="button" onclick="event.stopPropagation(); openTagsModal(${productId})"
-                    class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md">
-                    <i class="fa-solid fa-tags text-slate-400"></i>
-                    ${label}
+                <button type="button" onclick="event.stopPropagation(); openTagsModal(${Number(productId)})"
+                    class="inline-flex items-center gap-1.5 max-w-full text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
+                    <i class="fa-solid fa-tags text-[10px] text-gray-400"></i>
+                    <span class="truncate">${label}</span>
                 </button>`;
         }
 
@@ -235,13 +308,16 @@ while ($row = $linkResult->fetch_assoc()) {
             const subs = productSubIds[productId] || [];
             const body = document.getElementById('tagsModalBody');
             if (subs.length === 0) {
-                body.innerHTML = '<p class="text-sm text-slate-400 italic">No subcategories linked yet.</p>';
+                body.innerHTML = '<p class="text-xs text-gray-500">No subcategories linked yet.</p>';
                 return;
             }
             body.innerHTML = subs.map(sid => `
-                <span class="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg">
-                    ${subNames[sid] || sid}
-                    <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" onclick="unlinkOne(${productId}, ${sid})"></i>
+                <span class="inline-flex items-center gap-2 text-xs bg-gray-100 text-gray-800 pl-2.5 pr-1.5 h-8 rounded-md">
+                    ${escHtml(subNames[sid] || sid)}
+                    <button type="button" onclick="unlinkOne(${Number(productId)}, ${Number(sid)})" aria-label="Remove link"
+                        class="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600">
+                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    </button>
                 </span>`
             ).join('');
         }
@@ -258,6 +334,7 @@ while ($row = $linkResult->fetch_assoc()) {
             activeModalProductId = null;
             document.getElementById('tagsModal').classList.add('hidden');
         }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTagsModal(); });
 
         function renderProducts() {
             const query = document.getElementById('productSearch').value.trim().toLowerCase();
@@ -269,7 +346,7 @@ while ($row = $linkResult->fetch_assoc()) {
 
             let visibleCount = 0;
             products.forEach(p => {
-                const nameMatch = p.name.toLowerCase().includes(query);
+                const nameMatch = String(p.name).toLowerCase().includes(query);
                 const linkMatch = !unlinkedOnly || (productSubIds[p.id] || []).length === 0;
                 if (!nameMatch || !linkMatch) return;
                 visibleCount++;
@@ -280,59 +357,64 @@ while ($row = $linkResult->fetch_assoc()) {
                 const partiallyLinked = checkedSubs.length > 0 && matchedLinked.length > 0 && !fullyLinked;
 
                 const card = document.createElement('div');
-                let cardClasses = 'bg-white rounded-lg border p-3 transition ';
-                if (fullyLinked) {
-                    cardClasses += 'border-emerald-200 bg-emerald-50/40 opacity-70 cursor-not-allowed';
-                } else {
-                    cardClasses += 'cursor-pointer ' + (checked ? 'border-amber-500 ring-2 ring-amber-200' : 'border-slate-200 hover:border-amber-300');
-                }
-                card.className = cardClasses;
+                let cls = 'group relative bg-white rounded-lg border overflow-hidden transition ';
+                if (fullyLinked) cls += 'border-green-200 opacity-60 cursor-not-allowed';
+                else if (checked) cls += 'cursor-pointer border-orange-500 ring-2 ring-orange-500/20';
+                else cls += 'cursor-pointer border-gray-200 hover:border-gray-400';
+                card.className = cls;
                 card.onclick = () => toggleProductSelect(p.id, card);
 
                 const resolvedImg = resolveImageSrc(p.imageproduct);
+                const placeholder = '<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-box text-gray-300 text-2xl"></i></div>';
                 const imageBlock = resolvedImg
-                    ? `<img src="${resolvedImg}" class="w-full h-28 object-contain rounded-lg mb-2 bg-slate-100"
-                           onerror="this.outerHTML='<div class=&quot;w-full h-28 rounded-lg mb-2 bg-slate-100 flex items-center justify-center&quot;><i class=&quot;fa-solid fa-box text-slate-300 text-2xl&quot;></i></div>'">`
-                    : `<div class="w-full h-28 rounded-lg mb-2 bg-slate-100 flex items-center justify-center">
-                           <i class="fa-solid fa-box text-slate-300 text-2xl"></i>
-                       </div>`;
+                    ? `<img src="${escHtml(resolvedImg)}" alt="" loading="lazy" class="w-full h-full object-cover"
+                           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-full h-full flex items-center justify-center',innerHTML:'<i class=&quot;fa-solid fa-box text-gray-300 text-2xl&quot;></i>'}))">`
+                    : placeholder;
 
                 let statusBadge = '';
                 if (fullyLinked) {
-                    statusBadge = '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 mb-1"><i class="fa-solid fa-circle-check"></i> Already linked</span>';
+                    statusBadge = '<span class="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-white/95 border border-green-200 px-1.5 py-0.5 rounded"><i class="fa-solid fa-circle-check"></i> Already linked</span>';
                 } else if (partiallyLinked) {
-                    statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500 mb-1"><i class="fa-solid fa-triangle-exclamation"></i> ${matchedLinked.length}/${checkedSubs.length} already linked</span>`;
+                    statusBadge = `<span class="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-white/95 border border-amber-200 px-1.5 py-0.5 rounded"><i class="fa-solid fa-triangle-exclamation"></i> ${matchedLinked.length}/${checkedSubs.length} linked</span>`;
                 }
 
+                // Custom checkbox sa kanang itaas ng larawan
+                const checkBox = fullyLinked ? '' : `
+                    <span class="absolute top-2 right-2 w-5 h-5 rounded border flex items-center justify-center shadow-sm
+                                 ${checked ? 'bg-orange-600 border-orange-600' : 'bg-white border-gray-300 group-hover:border-gray-500'}">
+                        ${checked ? '<i class="fa-solid fa-check text-[10px] text-white"></i>' : ''}
+                    </span>`;
+
                 card.innerHTML = `
-                    ${imageBlock}
-                    ${statusBadge}
-                    <div class="flex items-start justify-between mb-2">
-                        <p class="text-sm font-bold text-slate-800 leading-snug">${p.name}</p>
-                        <input type="checkbox" class="w-4 h-4 accent-amber-500 mt-0.5 pointer-events-none flex-shrink-0 ml-2" ${checked ? 'checked' : ''} ${fullyLinked ? 'disabled' : ''}>
+                    <div class="relative aspect-[4/3] bg-gray-100">
+                        ${imageBlock}
+                        ${statusBadge}
+                        ${checkBox}
                     </div>
-                    <div class="flex flex-wrap">${tagSummaryFor(p.id)}</div>
-                `;
+                    <div class="p-3 border-t border-gray-100">
+                        <p class="nh-clamp-2 text-xs font-semibold text-gray-900 leading-snug min-h-[2rem]">${escHtml(p.name)}</p>
+                        <div class="mt-2 flex">${tagSummaryFor(p.id)}</div>
+                    </div>`;
                 grid.appendChild(card);
             });
 
             document.getElementById('noProductsMsg').classList.toggle('hidden', visibleCount !== 0);
+            document.getElementById('visibleLabel').textContent =
+                `${visibleCount} of ${products.length} shown` + (selectedProducts.size ? ` · ${selectedProducts.size} selected` : '');
         }
 
         function toggleProductSelect(productId, card) {
             const key = String(productId);
 
-            // Block selecting a product that's already linked to ALL currently checked subcategories
+            // Bawal piliin ang product na naka-link na sa LAHAT ng napiling subcategory
             if (!selectedProducts.has(key) && isFullyLinkedToChecked(productId)) {
                 showToast('This product is already linked to the selected subcategory/ies.');
                 return;
             }
 
-            if (selectedProducts.has(key)) {
-                selectedProducts.delete(key);
-            } else {
-                selectedProducts.add(key);
-            }
+            if (selectedProducts.has(key)) selectedProducts.delete(key);
+            else selectedProducts.add(key);
+
             renderProducts();
             updateApplyBar();
         }
@@ -364,6 +446,7 @@ while ($row = $linkResult->fetch_assoc()) {
                     if (activeModalProductId !== null && String(activeModalProductId) === String(productId)) {
                         renderTagsModalBody(productId);
                     }
+                    showToast('Link removed.');
                 } else {
                     showToast('Could not remove that link. Please try again.');
                 }
@@ -375,28 +458,27 @@ while ($row = $linkResult->fetch_assoc()) {
             const prodIds = Array.from(selectedProducts);
             if (subIds.length === 0 || prodIds.length === 0) return;
 
-            const applyBtn = document.querySelector('#applyBar button');
+            const applyBtn = document.getElementById('applyBtn');
+            const resetBtn = () => {
+                applyBtn.disabled = false;
+                applyBtn.classList.remove('opacity-60');
+                applyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply';
+            };
             applyBtn.disabled = true;
             applyBtn.classList.add('opacity-60');
-            applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Applying...';
+            applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Applying…';
 
             const jobs = [];
             let skippedCount = 0;
             prodIds.forEach(pid => {
                 subIds.forEach(sid => {
-                    // skip if already linked
-                    if (!(productSubIds[pid] || []).includes(Number(sid))) {
-                        jobs.push({ pid, sid });
-                    } else {
-                        skippedCount++;
-                    }
+                    if (!(productSubIds[pid] || []).includes(Number(sid))) jobs.push({ pid, sid });
+                    else skippedCount++;
                 });
             });
 
             if (jobs.length === 0) {
-                applyBtn.disabled = false;
-                applyBtn.classList.remove('opacity-60');
-                applyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply';
+                resetBtn();
                 showToast('Nothing to apply — all selected products are already linked to those subcategories.');
                 return;
             }
@@ -413,19 +495,10 @@ while ($row = $linkResult->fetch_assoc()) {
                         }
                     });
 
-                    applyBtn.disabled = false;
-                    applyBtn.classList.remove('opacity-60');
-                    applyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply';
+                    resetBtn();
 
-                    let msg = '';
-                    if (failCount > 0) {
-                        msg = failCount + ' link(s) failed to save. Please retry.';
-                    } else {
-                        msg = 'Linked successfully!';
-                    }
-                    if (skippedCount > 0) {
-                        msg += ' (' + skippedCount + ' pair(s) skipped — already linked)';
-                    }
+                    let msg = failCount > 0 ? failCount + ' link(s) failed to save. Please retry.' : 'Linked successfully!';
+                    if (skippedCount > 0) msg += ' (' + skippedCount + ' pair(s) skipped — already linked)';
                     showToast(msg);
 
                     selectedProducts.clear();

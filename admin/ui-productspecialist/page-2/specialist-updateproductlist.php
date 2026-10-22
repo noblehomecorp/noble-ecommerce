@@ -131,28 +131,32 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
     <?php include ROOT_PATH . '/link/top.php'; ?>
 </head>
 
-<body class="bg-slate-100">
+<body class="bg-gray-50 text-gray-900">
     <?php include ROOT_PATH . '/admin/navigation/navbar.php'; ?>
 
-    <div class="ml-60 min-h-screen bg-slate-100 p-6">
+    <div class="ml-60 min-h-screen bg-gray-50 px-8 py-7">
 
         <!-- Header -->
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-end justify-between gap-4 mb-6">
             <div>
-                <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Product Specialist</p>
-                <h1 class="text-xl font-bold text-gray-800">Products</h1>
-                <p class="text-sm text-gray-500 mt-0.5">
+                <nav class="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5" aria-label="Breadcrumb">
+                    <span>Product Specialist</span>
+                    <span class="text-gray-300">/</span>
+                    <span class="text-gray-900 font-medium">Products</span>
+                </nav>
+                <h1 class="text-xl font-bold tracking-tight text-gray-900">Products</h1>
+                <p class="text-xs text-gray-500 mt-1">
                     <?= count($products) ?> product<?= count($products) !== 1 ? 's' : '' ?> total
                 </p>
             </div>
             <a href="<?= BASE_URL ?>/ps-insertproduct"
-                class="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition">
+                class="flex items-center gap-2 h-10 px-4 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-md transition">
                 <i class="fa-solid fa-plus text-xs"></i> Add Product
             </a>
         </div>
 
         <!-- Filters -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-5">
+        <div class="bg-white rounded-lg border border-gray-200 p-3 mb-4">
             <div class="flex flex-wrap items-center gap-3">
 
                 <!-- Search -->
@@ -160,12 +164,12 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                     <i
                         class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
                     <input type="text" id="search-input" placeholder="Search by name or description…"
-                        class="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                        class="w-full pl-8 pr-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                 </div>
 
                 <!-- Category filter -->
                 <select id="category-filter"
-                    class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 transition min-w-40">
+                    class="px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 transition min-w-44">
                     <option value="">All categories</option>
                     <?php foreach ($categories as $cat): ?>
                         <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
@@ -174,7 +178,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
 
                 <!-- Clear -->
                 <button type="button" id="clear-filters"
-                    class="px-3 py-2 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition hidden">
+                    class="px-3 h-10 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition hidden">
                     <i class="fa-solid fa-xmark mr-1"></i> Clear
                 </button>
 
@@ -184,12 +188,12 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
         </div>
 
         <!-- Table -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <table class="w-full text-sm" id="products-table">
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table class="w-full text-xs" id="products-table">
                 <thead>
                     <tr
-                        class="border-b border-gray-100 bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
-                        <th class="text-left px-5 py-3 w-12">#</th>
+                        class="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500">
+                        <th class="text-left px-5 py-3 w-12 font-semibold">#</th>
                         <th class="text-left px-5 py-3">Product</th>
                         <th class="text-left px-5 py-3">Category</th>
                         <th class="text-center px-5 py-3">Colors</th>
@@ -206,12 +210,12 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                             <td colspan="9" class="px-5 py-12 text-center text-gray-400 text-sm">
                                 <i class="fa-solid fa-box-open text-3xl mb-3 block text-gray-300"></i>
                                 No products yet. <a href="<?= BASE_URL ?>/ps-insertproduct"
-                                    class="text-amber-500 hover:underline">Add one</a>.
+                                    class="text-orange-600 font-semibold hover:underline">Add one</a>.
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($products as $i => $p): ?>
-                            <tr class="product-row border-b border-gray-50 hover:bg-amber-50/40 transition group"
+                            <tr class="product-row border-b border-gray-100 last:border-0 hover:bg-gray-50 transition group"
                                 data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>"
                                 data-desc="<?= htmlspecialchars(strtolower($p['description'] ?? '')) ?>"
                                 data-category="<?= htmlspecialchars($p['category']) ?>">
@@ -225,15 +229,15 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                         <?php if (!empty($p['imageproduct'])): ?>
                                             <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
                                                 alt="<?= htmlspecialchars($p['name']) ?>"
-                                                class="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0">
+                                                class="w-11 h-11 rounded-md object-cover border border-gray-200 shrink-0">
                                         <?php else: ?>
                                             <div
-                                                class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                                                <i class="fa-solid fa-image text-amber-400 text-sm"></i>
+                                                class="w-11 h-11 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
+                                                <i class="fa-solid fa-image text-gray-400 text-sm"></i>
                                             </div>
                                         <?php endif; ?>
                                         <div>
-                                            <p class="font-semibold text-gray-800 leading-snug">
+                                            <p class="font-semibold text-gray-900 leading-snug">
                                                 <?= htmlspecialchars($p['name']) ?></p>
                                             <?php if (!empty($p['description'])): ?>
                                                 <p class="text-xs text-gray-400 mt-0.5 line-clamp-1 max-w-xs">
@@ -248,7 +252,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                 <td class="px-5 py-3.5">
                                     <?php if (!empty($p['category'])): ?>
                                         <span
-                                            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700">
                                             <?= htmlspecialchars($p['category']) ?>
                                         </span>
                                     <?php else: ?>
@@ -260,7 +264,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                 <td class="px-5 py-3.5 text-center">
                                     <span
                                         class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
-                                         <?= $p['color_count'] > 0 ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400' ?>">
+                                         <?= $p['color_count'] > 0 ? 'bg-gray-100 text-gray-900' : 'bg-gray-50 text-gray-400' ?>">
                                         <?= $p['color_count'] ?>
                                     </span>
                                 </td>
@@ -269,7 +273,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                 <td class="px-5 py-3.5 text-center">
                                     <span
                                         class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
-                                         <?= $p['variant_count'] > 0 ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400' ?>">
+                                         <?= $p['variant_count'] > 0 ? 'bg-gray-100 text-gray-900' : 'bg-gray-50 text-gray-400' ?>">
                                         <?= $p['variant_count'] ?>
                                     </span>
                                 </td>
@@ -290,7 +294,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                             data-product-id="<?= $p['id'] ?>"
                                             <?= $p['is_popular'] ? 'checked' : '' ?>>
                                         <div
-                                            class="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-amber-500 transition-colors duration-200">
+                                            class="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-orange-600 transition-colors duration-200">
                                         </div>
                                         <div
                                             class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4">
@@ -309,7 +313,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                                 class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-100">
                                                 <i class="fa-solid fa-bolt"></i> Active -<?= $discountLabel ?>%
                                             </span>
-                                            <span class="promo-countdown text-[9px] text-red-400 font-medium"
+                                            <span class="promo-countdown text-[10px] text-red-600 font-medium"
                                                 data-mode="end" data-end="<?= htmlspecialchars($promo['end_date']) ?>">
                                                 &nbsp;
                                             </span>
@@ -319,10 +323,10 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                         <a href="<?= BASE_URL ?>/ps-promotiontimer"
                                             class="inline-flex flex-col items-center gap-0.5" title="View promo timer">
                                             <span
-                                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                                                 <i class="fa-solid fa-clock"></i> Upcoming -<?= $discountLabel ?>%
                                             </span>
-                                            <span class="promo-countdown text-[9px] text-amber-500 font-medium"
+                                            <span class="promo-countdown text-[10px] text-amber-700 font-medium"
                                                 data-mode="start" data-start="<?= htmlspecialchars($promo['start_date']) ?>">
                                                 &nbsp;
                                             </span>
@@ -334,9 +338,9 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
 
                                 <!-- Action -->
                                 <td class="px-5 py-3.5 text-right">
-                                    <a href="<?= BASE_URL ?>/ps-updateproductlist?id=<?= $p['id'] ?>" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold
-                                      text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-100
-                                      rounded-lg transition group-hover:border-amber-300">
+                                    <a href="<?= BASE_URL ?>/ps-updateproductlist?id=<?= $p['id'] ?>" class="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold
+                                      text-gray-800 bg-white hover:bg-gray-50 border border-gray-300
+                                      rounded-md transition">
                                         <i class="fa-solid fa-pen-to-square text-[10px]"></i> Edit
                                     </a>
                                 </td>

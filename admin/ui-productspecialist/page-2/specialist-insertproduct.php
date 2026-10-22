@@ -64,36 +64,48 @@ $categories = loadCategories($conn);
     <?php include ROOT_PATH . '/link/top.php'; ?>
 </head>
 
-<body class="bg-slate-100">
+<body class="bg-gray-50 text-gray-900">
     <?php include ROOT_PATH . '/admin/navigation/navbar.php'; ?>
 
-    <div class="ml-60 min-h-screen bg-slate-100 p-6">
+    <div class="ml-60 min-h-screen bg-gray-50 px-8 py-7">
 
         <!-- Header -->
-        <div class="mb-6">
-            <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Product Specialist</p>
-            <h1 class="text-xl font-bold text-gray-800">Insert New Product</h1>
-            <p class="text-sm text-gray-500 mt-0.5">Fill in each step to add a product with colors and variants.</p>
+        <div class="flex items-end justify-between gap-4 mb-6">
+            <div>
+                <nav class="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5" aria-label="Breadcrumb">
+                    <span>Product Specialist</span>
+                    <span class="text-gray-300">/</span>
+                    <a href="<?= BASE_URL ?>/ps-updateproduct" class="hover:text-gray-900">Products</a>
+                    <span class="text-gray-300">/</span>
+                    <span class="text-gray-900 font-medium">New</span>
+                </nav>
+                <h1 class="text-xl font-bold tracking-tight text-gray-900">Insert New Product</h1>
+                <p class="text-xs text-gray-500 mt-1">Complete each step to add a product with its colors and variants.</p>
+            </div>
+            <a href="<?= BASE_URL ?>/ps-updateproduct"
+                class="shrink-0 inline-flex items-center gap-2 h-9 px-3.5 rounded-md border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition">
+                <i class="fa-solid fa-list text-[11px]"></i> View Products
+            </a>
         </div>
 
         <!-- Alerts -->
         <?php if ($success): ?>
             <div
-                class="flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg px-4 py-3 mb-6">
+                class="flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 text-xs font-medium rounded-md px-4 py-3 mb-6">
                 <i class="fa-solid fa-circle-check text-green-500"></i>
                 <?= $success ?>
             </div>
         <?php endif; ?>
         <?php if ($error): ?>
             <div
-                class="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-6">
+                class="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-xs font-medium rounded-md px-4 py-3 mb-6">
                 <i class="fa-solid fa-circle-exclamation text-red-500"></i>
                 <?= htmlspecialchars($error) ?>
             </div>
         <?php endif; ?>
 
         <!-- Step Progress Bar -->
-        <div class="flex items-center gap-0 mb-8 select-none" id="step-bar">
+        <div class="flex items-center gap-0 mb-6 select-none bg-white border border-gray-200 rounded-lg px-5 py-4" id="step-bar">
             <?php
             $steps = ['Product Info', 'Colors', 'Variants', 'Specifications', 'Gallery', 'Review'];
             foreach ($steps as $si => $sLabel):
@@ -103,16 +115,16 @@ $categories = loadCategories($conn);
                     <div class="step-indicator flex items-center gap-2 cursor-pointer" data-step="<?= $num ?>">
                         <div id="step-circle-<?= $num ?>"
                             class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200
-                                <?= $num === 1 ? 'bg-amber-500 text-white' : 'bg-white border-2 border-gray-200 text-gray-400' ?>">
+                                <?= $num === 1 ? 'bg-orange-600 text-white ring-4 ring-orange-100' : 'bg-white border border-gray-300 text-gray-500' ?>">
                             <?= $num ?>
                         </div>
                         <span id="step-label-<?= $num ?>"
-                            class="text-xs font-medium <?= $num === 1 ? 'text-amber-600' : 'text-gray-400' ?>">
+                            class="text-xs font-medium <?= $num === 1 ? 'text-gray-900 font-semibold' : 'text-gray-500' ?>">
                             <?= $sLabel ?>
                         </span>
                     </div>
                     <?php if ($si < count($steps) - 1): ?>
-                        <div class="flex-1 h-px mx-3 transition-all duration-300 <?= $num === 1 ? 'bg-amber-200' : 'bg-gray-200' ?>"
+                        <div class="flex-1 h-px mx-3 transition-all duration-300 bg-gray-200"
                             id="step-line-<?= $num ?>"></div>
                     <?php endif; ?>
                 </div>
@@ -123,14 +135,14 @@ $categories = loadCategories($conn);
 
             <!-- ░░ STEP 1 — Product Info ░░ -->
             <div id="step-panel-1" class="step-panel">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+                <div class="bg-white rounded-lg border border-gray-200 p-6 mb-4">
                     <div class="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100">
-                        <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                            <i class="fa-solid fa-box text-amber-500 text-sm"></i>
+                        <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                            <i class="fa-solid fa-box text-gray-700 text-sm"></i>
                         </div>
                         <div>
-                            <h2 class="text-sm font-semibold text-gray-800">Step 1 — Product Information</h2>
-                            <p class="text-xs text-gray-400">Basic details of your product.</p>
+                            <h2 class="text-sm font-semibold text-gray-900">Step 1 — Product Information</h2>
+                            <p class="text-xs text-gray-500">Basic details of your product.</p>
                         </div>
                     </div>
 
@@ -138,21 +150,21 @@ $categories = loadCategories($conn);
 
                         <!-- Product Name -->
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-widest mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                                 Product Name <span class="text-red-400">*</span>
                             </label>
                             <input type="text" name="product_name" required placeholder="e.g. Classic Oak Dining Table"
-                                class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                                class="w-full px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                         </div>
 
                         <!-- Category + Settings trigger -->
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-widest mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                                 Category <span class="text-red-400">*</span>
                             </label>
                             <div class="flex items-center gap-2">
                                 <select name="product_category" id="category-select" required
-                                    class="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                                    class="flex-1 px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     <option value="">Select category…</option>
                                     <?php foreach ($categories as $cat): ?>
                                         <option value="<?= htmlspecialchars($cat['name']) ?>">
@@ -161,7 +173,7 @@ $categories = loadCategories($conn);
                                     <?php endforeach; ?>
                                 </select>
                                 <button type="button" onclick="openCatPanel()" title="Manage categories"
-                                    class="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-400 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-500 transition">
+                                    class="w-10 h-10 shrink-0 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition">
                                     <i class="fa-solid fa-gear text-sm"></i>
                                 </button>
                             </div>
@@ -169,32 +181,32 @@ $categories = loadCategories($conn);
 
                         <!-- Description -->
                         <div class="col-span-2">
-                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-widest mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                                 Description
                             </label>
                             <textarea name="product_description" rows="4" placeholder="Describe the product…"
-                                class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition resize-none"></textarea>
+                                class="w-full px-3 py-2.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition resize-none"></textarea>
                         </div>
 
                         <!-- Unit -->
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-widest mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                                 Unit <span class="text-red-400">*</span>
                             </label>
                             <input type="text" name="product_unit" required placeholder="e.g. pcs, set, box"
-                                class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                                class="w-full px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                         </div>
 
                         <!-- Product Image -->
                         <div class="col-span-2">
-                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-widest mb-1.5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                                 Product Image
                                 <span class="text-xs text-gray-400 normal-case font-normal">(will be saved as
                                     .webp)</span>
                             </label>
                             <div class="flex items-start gap-4">
                                 <label
-                                    class="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-amber-400 transition overflow-hidden bg-gray-50"
+                                    class="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:border-gray-900 transition overflow-hidden bg-gray-50"
                                     id="product-img-label">
                                     <img id="product-img-preview" src="" alt=""
                                         class="hidden w-full h-full object-cover rounded-lg">
@@ -212,62 +224,93 @@ $categories = loadCategories($conn);
                         </div>
 
                         <!-- Simple product toggle -->
-                        <div class="col-span-2 pt-2 border-t border-gray-100">
-                            <label class="flex items-center gap-2 cursor-pointer w-fit">
-                                <input type="checkbox" id="simple-product-toggle" name="is_simple_product" value="1"
-                                    onchange="toggleSimpleProduct(this.checked)"
-                                    class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400">
-                                <span class="text-xs font-medium text-gray-600">
-                                    Simple product — no colors or sizes (e.g. a mouse, single SKU)
-                                </span>
-                            </label>
+                        <div class="col-span-2 pt-4 border-t border-gray-100">
+                            <!-- Hidden: ang radio buttons sa ibaba ang kumokontrol dito -->
+                            <input type="checkbox" id="simple-product-toggle" name="is_simple_product" value="1" class="hidden"
+                                onchange="toggleSimpleProduct(this.checked)">
+                            <p class="text-xs font-semibold text-gray-700 mb-2">Product type</p>
+                            <div class="grid grid-cols-3 gap-3 max-w-2xl" id="product-type-group">
+                                <label class="nh-type-card cursor-pointer flex items-start gap-3 p-3 rounded-md border bg-white transition"
+                                    data-type="variants">
+                                    <input type="radio" name="nh_product_type" value="variants" class="mt-0.5 text-orange-600 focus:ring-orange-500"
+                                        onchange="setProductType(this.value)" <?= ('variants') === 'variants' ? 'checked' : '' ?>>
+                                    <span class="min-w-0">
+                                        <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-900">
+                                            <i class="fa-solid fa-palette text-[11px] text-gray-500"></i> Colors &amp; sizes
+                                        </span>
+                                        <span class="block text-[11px] text-gray-500 mt-0.5">Multiple colors and sizes</span>
+                                    </span>
+                                </label>
+                                <label class="nh-type-card cursor-pointer flex items-start gap-3 p-3 rounded-md border bg-white transition"
+                                    data-type="sizes">
+                                    <input type="radio" name="nh_product_type" value="sizes" class="mt-0.5 text-orange-600 focus:ring-orange-500"
+                                        onchange="setProductType(this.value)" <?= ('variants') === 'sizes' ? 'checked' : '' ?>>
+                                    <span class="min-w-0">
+                                        <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-900">
+                                            <i class="fa-solid fa-ruler-combined text-[11px] text-gray-500"></i> Sizes only
+                                        </span>
+                                        <span class="block text-[11px] text-gray-500 mt-0.5">No colors, multiple sizes</span>
+                                    </span>
+                                </label>
+                                <label class="nh-type-card cursor-pointer flex items-start gap-3 p-3 rounded-md border bg-white transition"
+                                    data-type="simple">
+                                    <input type="radio" name="nh_product_type" value="simple" class="mt-0.5 text-orange-600 focus:ring-orange-500"
+                                        onchange="setProductType(this.value)" <?= ('variants') === 'simple' ? 'checked' : '' ?>>
+                                    <span class="min-w-0">
+                                        <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-900">
+                                            <i class="fa-solid fa-box text-[11px] text-gray-500"></i> Simple product
+                                        </span>
+                                        <span class="block text-[11px] text-gray-500 mt-0.5">Single item (one SKU)</span>
+                                    </span>
+                                </label>
+                            </div>
 
                             <div id="simple-fields" class="hidden mt-4 space-y-4">
                                 <div class="grid grid-cols-7 gap-3">
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Price
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Price
                                             (₱)</label>
                                         <input type="number" name="simple_price" min="0" step="0.01" placeholder="0.00"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Discount
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Discount
                                             (%)</label>
                                         <input type="number" name="simple_discount" min="0" max="100" step="0.01"
                                             placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Stock</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Stock</label>
                                         <input type="number" name="simple_stock" min="0" step="1" placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Width</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Width</label>
                                         <input type="number" name="simple_width" min="0" step="0.01" placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Height</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Height</label>
                                         <input type="number" name="simple_height" min="0" step="0.01" placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Length</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Length</label>
                                         <input type="number" name="simple_length" min="0" step="0.01" placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Unit</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Unit</label>
                                         <select name="simple_dimension_unit"
-                                            class="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                             <option value="mm">mm</option>
                                             <option value="cm">cm</option>
                                             <option value="m">m</option>
@@ -278,16 +321,16 @@ $categories = loadCategories($conn);
                                 <div class="grid grid-cols-7 gap-3">
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Weight</label>
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">Weight</label>
                                         <input type="number" name="simple_weight" min="0" step="0.01" placeholder="0"
-                                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">W.
+                                            class="block text-[11px] text-gray-600 font-semibold mb-1">W.
                                             Unit</label>
                                         <select name="simple_weight_unit"
-                                            class="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                                            class="w-full px-2 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                                             <option value="kg">kg</option>
                                             <option value="g">g</option>
                                             <option value="lbs">lbs</option>
@@ -302,7 +345,7 @@ $categories = loadCategories($conn);
 
                 <div class="flex justify-end">
                     <button type="button" onclick="goNextFromStep1()"
-                        class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-5 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         Next <i class="fa-solid fa-arrow-right text-xs"></i>
                     </button>
                 </div>
@@ -310,19 +353,19 @@ $categories = loadCategories($conn);
 
             <!-- ░░ STEP 2 — Colors ░░ -->
             <div id="step-panel-2" class="step-panel hidden">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+                <div class="bg-white rounded-lg border border-gray-200 p-6 mb-4">
                     <div class="flex items-center justify-between mb-5 pb-4 border-b border-gray-100">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                                <i class="fa-solid fa-palette text-amber-500 text-sm"></i>
+                            <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                                <i class="fa-solid fa-palette text-gray-700 text-sm"></i>
                             </div>
                             <div>
-                                <h2 class="text-sm font-semibold text-gray-800">Step 2 — Colors</h2>
-                                <p class="text-xs text-gray-400">Add one or more color variants for this product.</p>
+                                <h2 class="text-sm font-semibold text-gray-900">Step 2 — Colors</h2>
+                                <p class="text-xs text-gray-500">Add one or more color variants for this product.</p>
                             </div>
                         </div>
                         <button type="button" onclick="addColor()"
-                            class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition">
+                            class="flex items-center gap-2 h-9 px-3.5 text-xs font-semibold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition">
                             <i class="fa-solid fa-plus"></i> Add Color
                         </button>
                     </div>
@@ -330,11 +373,11 @@ $categories = loadCategories($conn);
                 </div>
                 <div class="flex justify-between">
                     <button type="button" onclick="goToStep(1)"
-                        class="px-5 py-2.5 border border-gray-200 bg-white text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        class="h-10 px-4 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fa-solid fa-arrow-left text-xs"></i> Back
                     </button>
                     <button type="button" onclick="goToStep(3)"
-                        class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-5 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         Next: Add Variants <i class="fa-solid fa-arrow-right text-xs"></i>
                     </button>
                 </div>
@@ -344,12 +387,12 @@ $categories = loadCategories($conn);
             <div id="step-panel-3" class="step-panel hidden">
                 <div id="variants-wrapper" class="space-y-5 mb-4"></div>
                 <div class="flex justify-between">
-                    <button type="button" onclick="goToStep(2)"
-                        class="px-5 py-2.5 border border-gray-200 bg-white text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                    <button type="button" onclick="goPrevFromStep3()"
+                        class="h-10 px-4 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fa-solid fa-arrow-left text-xs"></i> Back
                     </button>
                     <button type="button" onclick="goToStep(4)"
-                        class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-5 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         Next: Specifications <i class="fa-solid fa-arrow-right text-xs"></i>
                     </button>
                 </div>
@@ -357,20 +400,20 @@ $categories = loadCategories($conn);
 
             <!-- ░░ STEP 4 — Specifications ░░ -->
             <div id="step-panel-4" class="step-panel hidden">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+                <div class="bg-white rounded-lg border border-gray-200 p-6 mb-4">
                     <div class="flex items-center justify-between mb-5 pb-4 border-b border-gray-100">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                                <i class="fa-solid fa-list-check text-amber-500 text-sm"></i>
+                            <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                                <i class="fa-solid fa-list-check text-gray-700 text-sm"></i>
                             </div>
                             <div>
-                                <h2 class="text-sm font-semibold text-gray-800">Step 4 — Specifications</h2>
-                                <p class="text-xs text-gray-400">Add key-value product specs (e.g. Material, Weight).
+                                <h2 class="text-sm font-semibold text-gray-900">Step 4 — Specifications</h2>
+                                <p class="text-xs text-gray-500">Add key-value product specs (e.g. Material, Weight).
                                 </p>
                             </div>
                         </div>
                         <button type="button" onclick="addSpec()"
-                            class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition">
+                            class="flex items-center gap-2 h-9 px-3.5 text-xs font-semibold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition">
                             <i class="fa-solid fa-plus"></i> Add Spec
                         </button>
                     </div>
@@ -380,11 +423,11 @@ $categories = loadCategories($conn);
                 </div>
                 <div class="flex justify-between">
                     <button type="button" onclick="goPrevFromStep4()"
-                        class="px-5 py-2.5 border border-gray-200 bg-white text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        class="h-10 px-4 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fa-solid fa-arrow-left text-xs"></i> Back
                     </button>
                     <button type="button" onclick="goToStep(5)"
-                        class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-5 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         Next: Gallery <i class="fa-solid fa-arrow-right text-xs"></i>
                     </button>
                 </div>
@@ -392,19 +435,19 @@ $categories = loadCategories($conn);
 
             <!-- ░░ STEP 5 — Gallery ░░ -->
             <div id="step-panel-5" class="step-panel hidden">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+                <div class="bg-white rounded-lg border border-gray-200 p-6 mb-4">
                     <div class="flex items-center justify-between mb-5 pb-4 border-b border-gray-100">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                                <i class="fa-solid fa-images text-amber-500 text-sm"></i>
+                            <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                                <i class="fa-solid fa-images text-gray-700 text-sm"></i>
                             </div>
                             <div>
-                                <h2 class="text-sm font-semibold text-gray-800">Step 5 — Gallery</h2>
-                                <p class="text-xs text-gray-400">Upload additional product photos (saved as .webp).</p>
+                                <h2 class="text-sm font-semibold text-gray-900">Step 5 — Gallery</h2>
+                                <p class="text-xs text-gray-500">Upload additional product photos (saved as .webp).</p>
                             </div>
                         </div>
                         <label
-                            class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition cursor-pointer">
+                            class="flex items-center gap-2 h-9 px-3.5 text-xs font-semibold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition cursor-pointer">
                             <i class="fa-solid fa-plus"></i> Add Photos
                             <input type="file" id="gallery-file-input" name="gallery_images[]" accept="image/*" multiple
                                 class="hidden" onchange="handleGalleryAdd(this)">
@@ -414,12 +457,12 @@ $categories = loadCategories($conn);
                     <p id="gallery-empty" class="text-xs text-gray-400 text-center py-6">No gallery photos yet.</p>
                 </div>
                 <div class="flex justify-between">
-                    <button type="button" onclick="goToStep(5)"
-                        class="px-5 py-2.5 border border-gray-200 bg-white text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                    <button type="button" onclick="goToStep(4)"
+                        class="h-10 px-4 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fa-solid fa-arrow-left text-xs"></i> Back
                     </button>
                     <button type="button" onclick="goToStep(6)"
-                        class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-5 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         Next: Review <i class="fa-solid fa-arrow-right text-xs"></i>
                     </button>
                 </div>
@@ -427,25 +470,25 @@ $categories = loadCategories($conn);
 
             <!-- ░░ STEP 6 — Review ░░ -->
             <div id="step-panel-6" class="step-panel hidden">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+                <div class="bg-white rounded-lg border border-gray-200 p-6 mb-4">
                     <div class="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100">
-                        <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
-                            <i class="fa-solid fa-clipboard-check text-green-500 text-sm"></i>
+                        <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                            <i class="fa-solid fa-clipboard-check text-gray-700 text-sm"></i>
                         </div>
                         <div>
-                            <h2 class="text-sm font-semibold text-gray-800">Step 6 — Review &amp; Submit</h2>
-                            <p class="text-xs text-gray-400">Check your entries before saving.</p>
+                            <h2 class="text-sm font-semibold text-gray-900">Step 6 — Review &amp; Submit</h2>
+                            <p class="text-xs text-gray-500">Check your entries before saving.</p>
                         </div>
                     </div>
                     <div id="review-content" class="text-sm text-gray-700 space-y-4"></div>
                 </div>
                 <div class="flex justify-between">
                     <button type="button" onclick="goToStep(5)"
-                        class="px-5 py-2.5 border border-gray-200 bg-white text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        class="h-10 px-4 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-50 transition flex items-center gap-2">
                         <i class="fa-solid fa-arrow-left text-xs"></i> Back
                     </button>
                     <button type="submit" name="submit_product"
-                        class="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition flex items-center gap-2">
+                        class="h-10 px-6 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-md transition flex items-center gap-2">
                         <i class="fa-solid fa-floppy-disk"></i> Save Product
                     </button>
                 </div>
@@ -461,7 +504,7 @@ $categories = loadCategories($conn);
 
     <!-- Backdrop -->
     <div id="cat-backdrop" onclick="closeCatPanel()"
-        class="fixed inset-0 bg-black/30 z-40 hidden transition-opacity duration-200"></div>
+        class="fixed inset-0 bg-gray-900/40 z-40 hidden transition-opacity duration-200"></div>
 
     <!-- Panel -->
     <div id="cat-panel" class="fixed top-0 right-0 h-screen w-80 bg-white shadow-xl z-50 flex flex-col
@@ -470,7 +513,7 @@ $categories = loadCategories($conn);
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
             <div class="flex items-center gap-2">
-                <i class="fa-solid fa-gear text-amber-500"></i>
+                <i class="fa-solid fa-gear text-gray-500"></i>
                 <span class="text-sm font-semibold text-gray-800">Manage Categories</span>
             </div>
             <button onclick="closeCatPanel()"
@@ -484,9 +527,9 @@ $categories = loadCategories($conn);
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Add New Category</p>
             <div class="flex gap-2">
                 <input type="text" id="cat-new-input" placeholder="Category name…" maxlength="100"
-                    class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                    class="flex-1 px-3 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                 <button onclick="catAdd()"
-                    class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+                    class="h-9 px-3 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-md transition flex items-center gap-1.5">
                     <i class="fa-solid fa-plus"></i> Add
                 </button>
             </div>
@@ -499,13 +542,13 @@ $categories = loadCategories($conn);
             <ul id="cat-list" class="space-y-2">
                 <?php foreach ($categories as $cat): ?>
                     <li id="cat-item-<?= $cat['id'] ?>"
-                        class="flex items-center gap-2 group px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 hover:border-amber-200 transition">
-                        <span class="flex-1 text-sm text-gray-700 cat-display"><?= htmlspecialchars($cat['name']) ?></span>
+                        class="flex items-center gap-2 group px-3 py-2 rounded-md border border-gray-200 bg-white hover:border-gray-300 transition">
+                        <span class="flex-1 text-xs text-gray-800 cat-display"><?= htmlspecialchars($cat['name']) ?></span>
                         <input type="text" value="<?= htmlspecialchars($cat['name']) ?>"
-                            class="cat-edit-input hidden flex-1 text-sm px-2 py-0.5 border border-amber-300 rounded focus:outline-none bg-white"
+                            class="cat-edit-input hidden flex-1 text-xs px-2 py-0.5 border border-gray-400 rounded focus:outline-none bg-white"
                             onkeydown="if(event.key==='Enter') catSaveEdit(<?= $cat['id'] ?>, this)">
                         <button type="button" onclick="catStartEdit(<?= $cat['id'] ?>)"
-                            class="cat-edit-btn w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-amber-500 transition opacity-0 group-hover:opacity-100">
+                            class="cat-edit-btn w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-900 transition opacity-0 group-hover:opacity-100">
                             <i class="fa-solid fa-pen text-[10px]"></i>
                         </button>
                         <button type="button" onclick="catSaveEdit(<?= $cat['id'] ?>)"
@@ -557,8 +600,69 @@ $categories = loadCategories($conn);
         }
 
         function goNextFromStep1() {
-            goToStep(isSimpleProduct ? 4 : 2);
+            goToStep(isSimpleProduct ? 4 : (isSizesOnly ? 3 : 2));
         }
+        /* ═══════════════════════════════════════════════════════
+           PRODUCT TYPE: Colors & sizes / Sizes only / Simple
+           "Sizes only" = isang nakatagong color na "Default" + maraming sizes.
+           Walang binago sa backend — parehong color/variant fields ang ipinapasa.
+        ═══════════════════════════════════════════════════════ */
+        let isSizesOnly = false;
+
+        function syncTypeCards(type) {
+            document.querySelectorAll('.nh-type-card').forEach(card => {
+                const on = card.dataset.type === type;
+                card.classList.toggle('border-gray-900', on);
+                card.classList.toggle('ring-1', on);
+                card.classList.toggle('ring-gray-900', on);
+                card.classList.toggle('border-gray-300', !on);
+            });
+        }
+
+        function applySizesOnly() {
+            const cards = Array.from(document.querySelectorAll('[id^="color-card-"]'));
+            if (isSizesOnly) {
+                if (!cards.length) { addColor(); return applySizesOnly(); }
+                cards.slice(1).forEach(c => c.remove());
+                const first = cards[0];
+                const nameInp = first.querySelector('input[name^="color_name"]');
+                if (nameInp) nameInp.value = 'Default';
+                first.classList.add('hidden');
+            } else {
+                cards.forEach(c => {
+                    c.classList.remove('hidden');
+                    const n = c.querySelector('input[name^="color_name"]');
+                    if (n && n.value === 'Default') n.value = '';
+                });
+            }
+        }
+
+        function setProductType(type) {
+            // Kapag lilipat sa "Sizes only" at may ilang kulay na, magtanong muna
+            if (type === 'sizes' && document.querySelectorAll('[id^="color-card-"]').length > 1 &&
+                !confirm('"Sizes only" uses a single set of sizes. Other colors will be removed. Continue?')) {
+                const prev = isSimpleProduct ? 'simple' : (isSizesOnly ? 'sizes' : 'variants');
+                const r = document.querySelector(`input[name="nh_product_type"][value="${prev}"]`);
+                if (r) r.checked = true;
+                return;
+            }
+
+            const cb = document.getElementById('simple-product-toggle');
+            const wantSimple = type === 'simple';
+            if (cb && cb.checked !== wantSimple) {
+                cb.checked = wantSimple;
+                if (typeof onToggleSimpleProduct === 'function') onToggleSimpleProduct(cb);
+                else toggleSimpleProduct(wantSimple);
+            }
+            isSizesOnly = type === 'sizes';
+            if (!wantSimple) applySizesOnly();
+            syncTypeCards(type);
+        }
+
+        function goPrevFromStep3() {
+            goToStep(isSizesOnly ? 1 : 2);
+        }
+
 
         function goPrevFromStep4() {
             goToStep(isSimpleProduct ? 1 : 3);
@@ -574,30 +678,30 @@ $categories = loadCategories($conn);
 
             const card = document.createElement('div');
             card.id = 'color-card-' + ci;
-            card.className = 'border border-gray-100 rounded-xl p-5 bg-gray-50 relative';
+            card.className = 'border border-gray-200 rounded-lg p-5 bg-white relative';
             card.innerHTML = `
             <button type="button" onclick="removeColor(${ci})"
-                class="absolute top-3 right-3 w-7 h-7 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition text-xs">
+                class="absolute top-3 right-3 w-7 h-7 rounded-md border border-gray-200 bg-white text-gray-400 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition text-xs">
                 <i class="fa-solid fa-xmark"></i>
             </button>
-            <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Color #${ci + 1}</p>
+            <p class="text-xs font-semibold text-gray-900 mb-4">Color #${ci + 1}</p>
             <div class="grid grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Color Name <span class="text-red-400">*</span></label>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Color Name <span class="text-red-400">*</span></label>
                     <input type="text" name="color_name[${ci}]" placeholder="e.g. Walnut Brown" required
-                        class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition"
+                        class="w-full px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition"
                         oninput="syncColorName(${ci}, this.value)">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Base Price (₱)</label>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Base Price (₱)</label>
                     <input type="number" name="color_price[${ci}]" placeholder="0.00" min="0" step="0.01"
-                        class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                        class="w-full px-3 h-10 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">
                         Color Image <span class="text-[10px] text-gray-400 normal-case font-normal">(.webp)</span>
                     </label>
-                    <label class="flex items-center gap-2 cursor-pointer w-full px-3 py-2 text-sm border border-dashed border-gray-200 rounded-lg bg-white hover:border-amber-400 transition overflow-hidden">
+                    <label class="flex items-center gap-2 cursor-pointer w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-md bg-white hover:border-gray-900 transition overflow-hidden">
                         <img id="color-img-preview-${ci}" src="" alt="" class="hidden w-8 h-8 rounded object-cover shrink-0">
                         <span id="color-img-text-${ci}" class="text-gray-400 text-xs truncate">Upload image</span>
                         <input type="file" name="color_image[${ci}]" accept="image/*" class="hidden"
@@ -648,27 +752,33 @@ $categories = loadCategories($conn);
             indices.forEach(ci => {
                 const colorName = document.querySelector(`input[name="color_name[${ci}]"]`)?.value || ('Color #' + (ci + 1));
                 const section = document.createElement('div');
-                section.className = 'bg-white rounded-xl border border-gray-100 shadow-sm p-6';
+                section.className = 'bg-white rounded-lg border border-gray-200 p-6';
                 section.innerHTML = `
                 <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                            <i class="fa-solid fa-tag text-amber-500 text-sm"></i>
+                        <div class="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center">
+                            <i class="fa-solid fa-tag text-gray-700 text-sm"></i>
                         </div>
                         <div>
-                            <h2 class="text-sm font-semibold text-gray-800">Variants for:
-                                <span id="variant-color-header-${ci}" class="text-amber-600">${colorName}</span>
+                            <h2 class="text-sm font-semibold text-gray-900">Variants for:
+                                <span id="variant-color-header-${ci}" class="text-orange-600">${colorName}</span>
                             </h2>
-                            <p class="text-xs text-gray-400">Add sizes and dimensions.</p>
+                            <p class="text-xs text-gray-500">Add sizes and dimensions.</p>
                         </div>
                     </div>
                     <button type="button" onclick="addVariant(${ci})"
-                        class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition">
+                        class="flex items-center gap-2 h-8 px-3 text-xs font-semibold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition">
                         <i class="fa-solid fa-plus"></i> Add Size
                     </button>
                 </div>
                 <div id="variant-list-${ci}" class="space-y-3"></div>`;
                 wrapper.appendChild(section);
+                if (isSizesOnly) {
+                    const h = section.querySelector('h2');
+                    if (h) h.textContent = 'Sizes';
+                    const sub = section.querySelector('h2 + p');
+                    if (sub) sub.textContent = 'Add each size with its price, stock and dimensions.';
+                }
                 if (!variantCount[ci]) variantCount[ci] = 0;
                 for (let i = 0; i < variantCount[ci]; i++) _insertVariantRow(ci, i);
                 if (variantCount[ci] === 0) addVariant(ci);
@@ -686,63 +796,63 @@ $categories = loadCategories($conn);
             if (!list) return;
             const row = document.createElement('div');
             row.id = `variant-row-${ci}-${vi}`;
-            row.className = 'grid grid-cols-9 gap-3 items-end border border-gray-100 rounded-lg p-3 bg-gray-50';
+            row.className = 'grid grid-cols-9 gap-3 items-end border border-gray-200 rounded-md p-3 bg-gray-50/70';
             const unitOpts = UNITS.map(u => `<option value="${u}">${u}</option>`).join('');
             row.innerHTML = `
             <div class="col-span-2">
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Size Name <span class="text-red-400">*</span></label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Size Name <span class="text-red-400">*</span></label>
                 <input type="text" name="size_name[${ci}][${vi}]" placeholder="e.g. 60x120cm" required
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Price (₱)</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Price (₱)</label>
                 <input type="number" name="size_price[${ci}][${vi}]" placeholder="0.00" min="0" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Discount (%)</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Discount (%)</label>
                 <input type="number" name="size_discount[${ci}][${vi}]" placeholder="0" min="0" max="100" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Stock</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Stock</label>
                 <input type="number" name="size_stock[${ci}][${vi}]" placeholder="0" min="0" step="1"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Width</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Width</label>
                 <input type="number" name="size_width[${ci}][${vi}]" placeholder="0" min="0" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Height</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Height</label>
                 <input type="number" name="size_height[${ci}][${vi}]" placeholder="0" min="0" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Length</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Length</label>
                 <input type="number" name="size_length[${ci}][${vi}]" placeholder="0" min="0" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div class="flex items-end gap-1.5">
                 <div class="flex-1">
-                    <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Unit</label>
+                    <label class="block text-[11px] text-gray-600 font-semibold mb-1">Unit</label>
                     <select name="size_dimension_unit[${ci}][${vi}]"
-                        class="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                        class="w-full px-2 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                         ${unitOpts}
                     </select>
                 </div>
             </div>
             <div>
-                <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">Weight</label>
+                <label class="block text-[11px] text-gray-600 font-semibold mb-1">Weight</label>
                 <input type="number" name="size_weight[${ci}][${vi}]" placeholder="0" min="0" step="0.01"
-                    class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                    class="w-full px-2.5 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             </div>
             <div class="flex items-end gap-1.5">
                 <div class="flex-1">
-                    <label class="block text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">W. Unit</label>
+                    <label class="block text-[11px] text-gray-600 font-semibold mb-1">W. Unit</label>
                     <select name="size_weight_unit[${ci}][${vi}]"
-                        class="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-amber-400 transition">
+                        class="w-full px-2 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
                         <option value="kg">kg</option>
                         <option value="g">g</option>
                         <option value="lbs">lbs</option>
@@ -750,7 +860,7 @@ $categories = loadCategories($conn);
                     </select>
                 </div>
                 <button type="button" onclick="removeVariant(${ci}, ${vi})"
-                    class="w-7 h-7 shrink-0 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition text-xs mb-0.5">
+                    class="w-7 h-7 shrink-0 rounded-md border border-gray-200 bg-white text-gray-400 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition text-xs mb-0.5">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>`;
@@ -813,7 +923,7 @@ $categories = loadCategories($conn);
             }
 
             getActiveColorIndices().forEach(ci => {
-                const cName = document.querySelector(`input[name="color_name[${ci}]"]`)?.value || '—';
+                const cName = isSizesOnly ? 'Sizes' : (document.querySelector(`input[name="color_name[${ci}]"]`)?.value || '—');
                 const cPrice = document.querySelector(`input[name="color_price[${ci}]"]`)?.value || '0';
                 const cImg = document.getElementById('color-img-preview-' + ci);
                 html += `
@@ -821,10 +931,10 @@ $categories = loadCategories($conn);
                     <div class="flex items-center gap-3 mb-3">
                         ${cImg && cImg.src && !cImg.classList.contains('hidden')
                         ? `<img src="${cImg.src}" class="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-200">`
-                        : '<div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-500 shrink-0"><i class="fa-solid fa-palette text-sm"></i></div>'}
+                        : '<div class="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-gray-500 shrink-0"><i class="fa-solid fa-palette text-sm"></i></div>'}
                         <div>
                             <p class="font-semibold text-gray-800">${cName}</p>
-                            <p class="text-xs text-gray-400">Base price: ₱${parseFloat(cPrice || 0).toFixed(2)}</p>
+                            <p class="text-xs text-gray-500">Base price: ₱${parseFloat(cPrice || 0).toFixed(2)}</p>
                         </div>
                     </div>
                     <table class="w-full text-xs text-gray-700 border-collapse">
@@ -913,14 +1023,14 @@ $categories = loadCategories($conn);
 
             const li = document.createElement('li');
             li.id = 'cat-item-' + data.id;
-            li.className = 'flex items-center gap-2 group px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 hover:border-amber-200 transition';
+            li.className = 'flex items-center gap-2 group px-3 py-2 rounded-md border border-gray-200 bg-white hover:border-gray-300 transition';
             li.innerHTML = `
-            <span class="flex-1 text-sm text-gray-700 cat-display">${escHtml(data.name)}</span>
+            <span class="flex-1 text-xs text-gray-800 cat-display">${escHtml(data.name)}</span>
             <input type="text" value="${escHtml(data.name)}"
-                class="cat-edit-input hidden flex-1 text-sm px-2 py-0.5 border border-amber-300 rounded focus:outline-none bg-white"
+                class="cat-edit-input hidden flex-1 text-xs px-2 py-0.5 border border-gray-400 rounded focus:outline-none bg-white"
                 onkeydown="if(event.key==='Enter') catSaveEdit(${data.id}, this)">
             <button type="button" onclick="catStartEdit(${data.id})"
-                class="cat-edit-btn w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-amber-500 transition opacity-0 group-hover:opacity-100">
+                class="cat-edit-btn w-6 h-6 rounded flex items-center justify-center text-gray-300 hover:text-gray-900 transition opacity-0 group-hover:opacity-100">
                 <i class="fa-solid fa-pen text-[10px]"></i>
             </button>
             <button type="button" onclick="catSaveEdit(${data.id})"
@@ -1032,12 +1142,12 @@ $categories = loadCategories($conn);
             row.className = 'flex items-center gap-3';
             row.innerHTML = `
             <input type="text" name="spec_key[]" placeholder="e.g. Material" maxlength="100"
-                class="w-40 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition shrink-0">
+                class="w-40 px-3 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition shrink-0">
             <span class="text-gray-300 text-sm">:</span>
             <input type="text" name="spec_value[]" placeholder="e.g. Solid Oak" maxlength="255"
-                class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:border-amber-400 focus:bg-white transition">
+                class="flex-1 px-3 h-9 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition">
             <button type="button" onclick="removeSpec(${si})"
-                class="w-7 h-7 shrink-0 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition text-xs">
+                class="w-7 h-7 shrink-0 rounded-md border border-gray-200 bg-white text-gray-400 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition text-xs">
                 <i class="fa-solid fa-xmark"></i>
             </button>`;
             list.appendChild(row);
@@ -1118,20 +1228,20 @@ $categories = loadCategories($conn);
                 const line = document.getElementById('step-line-' + i);
 
                 if (i < n) {
-                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-amber-100 text-amber-600 transition-all duration-200';
+                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-gray-900 text-white transition-all duration-200';
                     circle.innerHTML = '<i class="fa-solid fa-check text-xs"></i>';
-                    label.className = 'text-xs font-medium text-amber-500';
+                    label.className = 'text-xs font-medium text-gray-900';
                 } else if (i === n) {
-                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-amber-500 text-white transition-all duration-200';
+                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-orange-600 text-white ring-4 ring-orange-100 transition-all duration-200';
                     circle.innerHTML = i;
-                    label.className = 'text-xs font-medium text-amber-600';
+                    label.className = 'text-xs font-semibold text-gray-900';
                 } else {
-                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-white border-2 border-gray-200 text-gray-400 transition-all duration-200';
+                    circle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-white border border-gray-300 text-gray-500 transition-all duration-200';
                     circle.innerHTML = i;
-                    label.className = 'text-xs font-medium text-gray-400';
+                    label.className = 'text-xs font-medium text-gray-500';
                 }
                 if (line) {
-                    const bg = i < n ? 'bg-amber-300' : i === n ? 'bg-amber-200' : 'bg-gray-200';
+                    const bg = i < n ? 'bg-gray-900' : 'bg-gray-200';
                     line.className = line.className.replace(/bg-\S+/, bg);
                 }
             }
@@ -1160,6 +1270,7 @@ $categories = loadCategories($conn);
         });
 
         addColor();
+        syncTypeCards('variants');
     </script>
 
 </body>
