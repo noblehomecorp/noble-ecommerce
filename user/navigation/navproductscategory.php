@@ -55,6 +55,17 @@ $menuCats = array_filter($categories, fn($c) => !empty($c['subcategories']));
 $firstCid = array_key_first($menuCats);
 $productsTriggerActive = !empty($isShopActive);
 
+if (!function_exists('nhMenuName')) {
+    // Lahat ng category/subcategory name ay CAPITAL LETTERS.
+    // May display fix din para sa mga pangalang walang space sa DB (hal. BATHROOMFIXTURES).
+    function nhMenuName(string $name): string
+    {
+        $name = mb_strtolower(trim($name));
+        $name = preg_replace('/(?<=[a-z])(fixtures?|materials?|supplies|accessories)$/u', ' $1', $name);
+        return mb_strtoupper($name);
+    }
+}
+
 if (!function_exists('nhMenuIsSale')) {
     function nhMenuIsSale(array $prod): bool
     {
@@ -235,12 +246,12 @@ if (!function_exists('nhMenuProductGrid')) {
                     <nav class="flex-1 overflow-y-auto nh-thin-scroll pb-2">
                         <?php foreach ($menuCats as $cid => $cat): ?>
                             <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $cid ?>"
-                                class="nh-cat-item flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:text-orange-600 transition-colors"
+                                class="nh-cat-item flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-gray-700 hover:text-orange-600 transition-colors"
                                 data-cat-item="<?= (int) $cid ?>" data-active="<?= $cid === $firstCid ? 'true' : 'false' ?>">
                                 <span class="nh-cat-initial w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center text-[11px] font-bold text-gray-500 shrink-0 transition-colors">
                                     <?= htmlspecialchars(mb_strtoupper(mb_substr($cat['name'], 0, 1))) ?>
                                 </span>
-                                <span class="flex-1 truncate"><?= htmlspecialchars(ucwords(mb_strtolower($cat['name']))) ?></span>
+                                <span class="flex-1 truncate tracking-wide"><?= htmlspecialchars(nhMenuName($cat['name'])) ?></span>
                                 <i class="nh-cat-chev fa-solid fa-chevron-right text-[10px] text-gray-300 opacity-0 transition-opacity"></i>
                             </a>
                         <?php endforeach; ?>
@@ -265,7 +276,7 @@ if (!function_exists('nhMenuProductGrid')) {
                                 if (count($catProducts) >= 4) break 2;
                             }
                         }
-                        $catNameNice = ucwords(mb_strtolower($cat['name']));
+                        $catNameNice = nhMenuName($cat['name']);
                         ?>
                         <div class="nh-cat-pane h-full flex-col <?= $cid === $firstCid ? 'flex' : 'hidden' ?>"
                             data-cat-pane="<?= (int) $cid ?>">
@@ -274,7 +285,7 @@ if (!function_exists('nhMenuProductGrid')) {
                             <div class="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
                                 <div>
                                     <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">Category</p>
-                                    <h3 class="text-base font-extrabold text-gray-900 leading-tight">
+                                    <h3 class="text-base font-extrabold tracking-wide text-gray-900 leading-tight">
                                         <?= htmlspecialchars($catNameNice) ?>
                                     </h3>
                                 </div>
@@ -294,10 +305,10 @@ if (!function_exists('nhMenuProductGrid')) {
                                         <?php foreach ($cat['subcategories'] as $sid => $sub): ?>
                                             <li>
                                                 <a href="<?= BASE_URL ?>/productcategory?id=<?= (int) $cid ?>&sub=<?= (int) $sid ?>"
-                                                    class="nh-sub-item flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-sm text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                                                    class="nh-sub-item flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-[13px] font-medium text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                                                     data-sub-item="<?= (int) $sid ?>"
-                                                    data-sub-name="<?= htmlspecialchars(ucwords(mb_strtolower($sub['name']))) ?>">
-                                                    <span class="truncate"><?= htmlspecialchars(ucwords(mb_strtolower($sub['name']))) ?></span>
+                                                    data-sub-name="<?= htmlspecialchars(nhMenuName($sub['name'])) ?>">
+                                                    <span class="truncate tracking-wide"><?= htmlspecialchars(nhMenuName($sub['name'])) ?></span>
                                                     <span class="nh-sub-count shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 transition-colors">
                                                         <?= count($sub['products']) ?>
                                                     </span>
