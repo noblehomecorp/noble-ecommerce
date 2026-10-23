@@ -240,6 +240,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                         <?php if (!empty($p['imageproduct'])): ?>
                                             <img src="<?= $uploadUrl . htmlspecialchars($p['imageproduct']) ?>"
                                                 alt="<?= htmlspecialchars($p['name']) ?>"
+                                                loading="lazy" decoding="async"
                                                 class="w-11 h-11 rounded-md object-cover border border-gray-200 shrink-0">
                                         <?php else: ?>
                                             <div
@@ -367,6 +368,28 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                 No products match your search.
             </div>
             </div>
+
+            <!-- Pagination (always shown, even when there's only one page) -->
+            <?php if (!empty($products)): ?>
+                <div id="pagination"
+                    class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-gray-200 bg-white">
+                    <p id="page-info" class="text-[11px] text-gray-500"></p>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                            Rows per page
+                            <select id="page-size"
+                                class="h-8 px-2 rounded-md border border-gray-300 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </label>
+                        <nav id="page-buttons" class="flex items-center gap-1" aria-label="Pagination"></nav>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
     </div>
@@ -379,33 +402,116 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
         const noResults = document.getElementById('no-results');
         const rows = document.querySelectorAll('.product-row');
 
-        function filterTable() {
+        // ── Pagination state ──────────────────────────────────────────────────
+        const pageSizeSel = document.getElementById('page-size');
+        let currentPage = 1;
+        let pageSize = 10;
+        try { pageSize = parseInt(localStorage.getItem('nh_products_page_size'), 10) || 10; } catch (e) { }
+        if (pageSizeSel) {
+            pageSizeSel.value = String(pageSize);
+            if (!pageSizeSel.value) { pageSize = 10; pageSizeSel.value = '10'; }
+        }
+
+        function pageList(cur, total) {
+            // e.g. 1 … 4 5 6 … 20
+            const out = [];
+            for (let i = 1; i <= total; i++) {
+                if (i === 1 || i === total || Math.abs(i - cur) <= 1) out.push(i);
+                else if (out[out.length - 1] !== '…') out.push('…');
+            }
+            return out;
+        }
+
+        function renderPagination(total, start, end, totalPages) {
+            const info = document.getElementById('page-info');
+            const nav = document.getElementById('page-buttons');
+            if (!info || !nav) return;
+
+            info.textContent = total
+                ? `Showing ${start + 1}–${end} of ${total} · Page ${currentPage} of ${totalPages}`
+                : 'No results';
+
+            const btn = (label, page, { active = false, disabled = false, aria = '' } = {}) => `
+                <button type="button" ${disabled ? 'disabled' : `data-page="${page}"`} ${aria ? `aria-label="${aria}"` : ''}
+                    class="min-w-8 h-8 px-2 rounded-md text-xs font-semibold border transition
+                           ${active ? 'bg-gray-900 border-gray-900 text-white'
+                    : disabled ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white'
+                        : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'}">${label}</button>`;
+
+            let html = btn('<i class="fa-solid fa-chevron-left text-[10px]"></i>', currentPage - 1,
+                { disabled: currentPage <= 1, aria: 'Previous page' });
+            pageList(currentPage, totalPages).forEach(p => {
+                html += p === '…'
+                    ? '<span class="px-1 text-xs text-gray-400">…</span>'
+                    : btn(p, p, { active: p === currentPage });
+            });
+            html += btn('<i class="fa-solid fa-chevron-right text-[10px]"></i>', currentPage + 1,
+                { disabled: currentPage >= totalPages, aria: 'Next page' });
+            nav.innerHTML = html;
+        }
+
+        function filterTable(resetPage = false) {
             const q = searchInput.value.trim().toLowerCase();
             const cat = categoryFilter.value;
-            let visible = 0;
 
+            // 1) Filter
+            const matched = [];
             rows.forEach(row => {
                 const nameMatch = row.dataset.name.includes(q) || row.dataset.desc.includes(q);
                 const catMatch = !cat || row.dataset.category === cat;
-                const show = nameMatch && catMatch;
-                row.classList.toggle('hidden', !show);
-                if (show) visible++;
+                if (nameMatch && catMatch) matched.push(row);
             });
 
+            // 2) Paginate — only rows on the current page are shown
+            if (resetPage) currentPage = 1;
+            const totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const start = (currentPage - 1) * pageSize;
+            const end = Math.min(start + pageSize, matched.length);
+            const onPage = new Set(matched.slice(start, end));
+
+            rows.forEach(row => row.classList.toggle('hidden', !onPage.has(row)));
+
+            const visible = matched.length;
             noResults.classList.toggle('hidden', visible > 0);
-            resultsLabel.textContent = q || cat
-                ? `${visible} of ${rows.length} shown`
-                : '';
+            resultsLabel.textContent = q || cat ? `${visible} of ${rows.length} match` : '';
             clearBtn.classList.toggle('hidden', !q && !cat);
+            renderPagination(visible, start, end, totalPages);
         }
 
-        searchInput.addEventListener('input', () => { filterTable(); document.getElementById('products-scroll').scrollTop = 0; });
-        categoryFilter.addEventListener('change', filterTable);
+        function goToPage(n) {
+            currentPage = n;
+            filterTable();
+            const scroller = document.getElementById('products-scroll');
+            if (scroller) scroller.scrollTop = 0;
+        }
+
+        document.getElementById('page-buttons')?.addEventListener('click', e => {
+            const b = e.target.closest('button[data-page]');
+            if (b) goToPage(parseInt(b.dataset.page, 10));
+        });
+        pageSizeSel?.addEventListener('change', () => {
+            pageSize = parseInt(pageSizeSel.value, 10) || 10;
+            try { localStorage.setItem('nh_products_page_size', String(pageSize)); } catch (e) { }
+            filterTable(true);
+        });
+
+        let searchTimer = null;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                filterTable(true);
+                document.getElementById('products-scroll').scrollTop = 0;
+            }, 200);
+        });
+        categoryFilter.addEventListener('change', () => filterTable(true));
         clearBtn.addEventListener('click', () => {
             searchInput.value = '';
             categoryFilter.value = '';
-            filterTable();
+            filterTable(true);
         });
+
+        filterTable(); // initial page
 
         // ── Popular toggle (AJAX) ────────────────────────────────────────────
         document.querySelectorAll('.popular-toggle').forEach(toggle => {
