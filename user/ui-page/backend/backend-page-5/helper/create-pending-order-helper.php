@@ -1,11 +1,15 @@
 <?php
 // handler/create-pending-order-helper.php
+//
+// Shared logic for /createcheckoutsession (cards & wallets) and /createqrph (QR Ph).
+// Expects checkout-data.php to be included first ($cartItems, $subtotal, $vatAmount,
+// $grandTotal, $assignedTruck, $storeLat, $storeLng, promo/tier helpers).
 
 if (!function_exists('nhStartPaymongoCheckout')):
 
 require_once __DIR__ . '/stock-reserve-helper.php';
 
-if (!defined('NH_MIN_AMOUNT_CENTAVOS')) define('NH_MIN_AMOUNT_CENTAVOS', 2000); // PayMongo minimum: ₱20.00
+if (!defined('NH_MIN_AMOUNT_CENTAVOS')) define('NH_MIN_AMOUNT_CENTAVOS', 100); // ₱1.00 minimum (PayMongo may still reject an amount too low for a payment method)
 
 function nhHaversineKm(float $lat1, float $lng1, float $lat2, float $lng2): float
 {
@@ -147,7 +151,7 @@ function nhStartPaymongoCheckout(mysqli $conn, int $userId, array $body, string 
     $finalGrand     = round($grandTotal + $deliveryFee, 2);
     $amountCentavos = intval(round($finalGrand * 100));
     if ($amountCentavos < NH_MIN_AMOUNT_CENTAVOS) {
-        nhJsonOut(['ok' => false, 'error' => 'Order total is below the minimum payable amount (₱20.00).']);
+        nhJsonOut(['ok' => false, 'error' => 'Order total is below the minimum payable amount (₱1.00).']);
     }
 
     $pricedItems = nhPriceCartItems($cartItems, $promosByProduct, $productQtyMap, $tiersPerProduct);
