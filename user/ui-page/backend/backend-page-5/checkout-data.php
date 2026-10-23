@@ -4,10 +4,21 @@
 
 include ROOT_PATH . '/network/connect.php';
 include ROOT_PATH . '/user/ui-page/backend/backend-page-2/productqtydiscount-helper.php';
+require_once ROOT_PATH . '/user/ui-page/backend/backend-page-5/helper/stock-reserve-helper.php';
 
 
 $userId   = intval($_SESSION['user_id']);
 $uploadUrl = BASE_URL . '/uploads/';
+
+// ── 0. Release reserved stock before reading it ───────────────────────────────
+// If the user came back from PayMongo without paying (back button / closed tab),
+// their old checkout still holds stock — release it so the stock check below is
+// accurate. Also releases other users' abandoned checkouts past the time limit.
+// (If they still pay the old session, the webhook re-checks stock — see finalize helper.)
+if ($userId > 0) {
+    expireStalePendingOrders($conn);
+    cancelOpenPendingOrdersForUser($conn, $userId);
+}
 
 // ── 1. Cart items ─────────────────────────────────────────────────────────────
 $stmt = $conn->prepare("
@@ -52,7 +63,7 @@ $stmt->close();
 
 // Redirect to cart if empty
 if (empty($cartItems)) {
-    header('Location: ' . BASE_URL . '/cart');
+    header('Location: ' . BASE_URL . '/cartview');
     exit;
 }
 

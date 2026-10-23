@@ -12,6 +12,10 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+# Missing upload (image/file not found) → real 404
+# (don't send it to index.php, which would redirect to the home page)
+RewriteRule ^uploads/ - [R=404,L]
+
 # Remove .php extension
 # e.g. /loginpage/profile → /loginpage/profile.php
 RewriteCond %{REQUEST_FILENAME} !-f

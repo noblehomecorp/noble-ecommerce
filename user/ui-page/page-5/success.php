@@ -3,205 +3,156 @@
 include ROOT_PATH . '/network/connect.php';
 include ROOT_PATH . '/admin/authentication/index-roles.php';
 
+require_once ROOT_PATH . '/user/ui-page/backend/backend-page-5/helper/finalize-order-helper.php';
+
+if (empty($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . '/google');
+    exit;
+}
 $userId = intval($_SESSION['user_id']);
 
-// ── Localhost bypass: manually process pending order ─────────────────────────
-$isLocalhost = false;
-
-if ($isLocalhost) {
-    // Find the latest unused pending order for this user
-    $s = $conn->prepare("
-        SELECT * FROM noblependingorder
-        WHERE user_id = ? AND used = 0
-        ORDER BY created_at DESC LIMIT 1
-    ");
+// The success_url is /success?pending=ID — show THIS checkout, not just the latest order.
+$pendingOrderId = intval($_GET['pending'] ?? 0);
+if ($pendingOrderId <= 0) {
+    // Old links without ?pending → fall back to the user's most recent checkout
+    $s = $conn->prepare("SELECT id FROM noblependingorder WHERE user_id = ? ORDER BY id DESC LIMIT 1");
     $s->bind_param("i", $userId);
+    $s->execute();
+    $pendingOrderId = intval($s->get_result()->fetch_assoc()['id'] ?? 0);
+    $s->close();
+}
+
+// ── Localhost bypass (no webhook on localhost) — uses the SAME finalize logic ──
+$isLocalhost = false;
+if ($isLocalhost && $pendingOrderId > 0) {
+    finalizePendingOrder($conn, $pendingOrderId, $userId);
+}
+
+// ── Look up the pending order + its final order ──────────────────────────────
+$pending = null;
+if ($pendingOrderId > 0) {
+    $s = $conn->prepare("SELECT id, payment_status, final_order_id, used FROM noblependingorder WHERE id = ? AND user_id = ?");
+    $s->bind_param("ii", $pendingOrderId, $userId);
     $s->execute();
     $pending = $s->get_result()->fetch_assoc();
     $s->close();
-
-    if ($pending) {
-        $cartItems = json_decode($pending['cart_items_json'], true);
-
-        // Generate NHCC reference
-        $year = date('Y');
-        $refCheck = $conn->prepare("
-            SELECT nhccreference FROM noblepaidproductlist
-            WHERE nhccreference LIKE ? ORDER BY id DESC LIMIT 1
-        ");
-        $likePattern = "NHCC-{$year}-%";
-        $refCheck->bind_param("s", $likePattern);
-        $refCheck->execute();
-        $lastRef = $refCheck->get_result()->fetch_assoc();
-        $refCheck->close();
-
-        $lastNum       = $lastRef ? intval(substr($lastRef['nhccreference'], -3)) : 0;
-        $nhccReference = 'NHCC-' . $year . '-' . str_pad($lastNum + 1, 3, '0', STR_PAD_LEFT);
-
-        $conn->begin_transaction();
-        try {
-            // Deduct stock + increment sold count
-            $stockStmt = $conn->prepare("
-                UPDATE nobleproductvariant
-                SET stock = stock - ?, sold = sold + ?
-                WHERE id = ? AND stock >= ?
-            ");
-            foreach ($cartItems as $item) {
-                $vId = intval($item['variant_id']);
-                $qty = intval($item['quantity']);
-                $stockStmt->bind_param("iiii", $qty, $qty, $vId, $qty);
-                $stockStmt->execute();
-            }
-            $stockStmt->close();
-
-            // Insert order
-            $ins = $conn->prepare("
-                INSERT INTO noblepaidproductlist
-                  (nhccreference, user_id, contact_name, contact_email, contact_phone,
-                   address_id, address_full, address_barangay, address_city, address_postalcode, address_lat, address_lng,
-                   delivery_method, truck_id, truck_name, truck_max_cubic_meter, truck_max_weight_capacity,
-                   delivery_distance_km, delivery_fee,
-                   subtotal, vat_amount, grand_total, payment_status)
-                VALUES
-                  (?,?,?,?,?,  ?,?,?,?,?,?,?,  ?,?,?,?,?,  ?,?,  ?,?,?,  'paid')
-            ");
-            $ins->bind_param(
-                "sisssissssddsisddddddd",
-                $nhccReference,
-                $userId,
-                $pending['contact_name'],
-                $pending['contact_email'],
-                $pending['contact_phone'],
-                $pending['address_id'],
-                $pending['address_full'],
-                $pending['address_barangay'],
-                $pending['address_city'],
-                $pending['address_postal'],
-                $pending['address_lat'],
-                $pending['address_lng'],
-                $pending['method'],
-                $pending['truck_id'],
-                $pending['truck_name'],
-                $pending['truck_max_vol'],
-                $pending['truck_max_wt'],
-                $pending['distance_km'],
-                $pending['delivery_fee'],
-                $pending['subtotal'],
-                $pending['vat_amount'],
-                $pending['grand_total']
-            );
-            $ins->execute();
-            $orderId = $conn->insert_id;
-            $ins->close();
-
-            // Insert line items
-            $insItem = $conn->prepare("
-                INSERT INTO noblepaidproductitems
-                  (order_id, product_id, product_name, color_id, colorname, variant_id, sizename, unit,
-                   quantity, unit_price, discount_pct, line_total)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            ");
-            foreach ($cartItems as $item) {
-                $pid       = intval($item['product_id']);
-                $pname     = $item['product_name'];
-                $cid       = intval($item['color_id']);
-                $cname     = $item['colorname'];
-                $vid       = intval($item['variant_id']);
-                $sname     = $item['sizename'];
-                $punit     = $item['product_unit'] ?? '';
-                $qty       = intval($item['quantity']);
-                $price     = floatval($item['pricesize']);
-                $disc      = floatval($item['discountvariant']);
-                $unitPrice = $disc > 0 ? round($price * (1 - $disc / 100), 2) : $price;
-                $lineTotal = round($unitPrice * $qty, 2);
-
-                $insItem->bind_param(
-                    "iisisissiddd",
-                    $orderId, $pid, $pname, $cid, $cname, $vid, $sname, $punit,
-                    $qty, $unitPrice, $disc, $lineTotal
-                );
-                $insItem->execute();
-            }
-            $insItem->close();
-
-            // Clear cart
-            $conn->query("DELETE FROM noblecart WHERE user_id = " . intval($userId));
-
-            // Mark pending as used
-            $conn->query("
-                UPDATE noblependingorder SET used = 1, order_id = " . intval($orderId) . "
-                WHERE id = " . intval($pending['id'])
-            );
-
-            // Notify Accounting
-            $notifTitle  = 'New Order ' . $nhccReference;
-            $notifMsg    = 'Order from ' . $pending['contact_name'] . ' — ₱' . number_format(floatval($pending['grand_total']), 2);
-            $notifLink   = BASE_URL . '/accounting';
-            $forRole     = ROLE_ACCOUNTING;
-            $forPosition = POSITION_HEAD;
-            $forUserId   = null;
-            $ns = $conn->prepare("
-                INSERT INTO noblenotification (for_role, for_position, for_user_id, title, message, link)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ");
-            $ns->bind_param("ssisss", $forRole, $forPosition, $forUserId, $notifTitle, $notifMsg, $notifLink);
-            $ns->execute();
-            $ns->close();
-
-            $conn->commit();
-
-        } catch (Exception $e) {
-            $conn->rollback();
-        }
-    }
 }
 
-// ── Fetch the confirmed order ─────────────────────────────────────────────────
+if (!$pending) {
+    header('Location: ' . BASE_URL . '/');
+    exit;
+}
+
 $order = null;
-$s = $conn->prepare("
-    SELECT o.*, COUNT(i.id) AS item_count
-    FROM noblepaidproductlist o
-    LEFT JOIN noblepaidproductitems i ON i.order_id = o.id
-    WHERE o.user_id = ? AND o.payment_status = 'paid'
-    GROUP BY o.id
-    ORDER BY o.id DESC
-    LIMIT 1
-");
-$s->bind_param("i", $userId);
-$s->execute();
-$order = $s->get_result()->fetch_assoc();
-$s->close();
+$finalOrderId = intval($pending['final_order_id'] ?? 0);
+if ($finalOrderId > 0) {
+    $s = $conn->prepare("
+        SELECT o.*, COUNT(i.id) AS item_count
+        FROM noblepaidproductlist o
+        LEFT JOIN noblepaidproductitems i ON i.order_id = o.id
+        WHERE o.id = ? AND o.user_id = ? AND o.payment_status = 'paid'
+        GROUP BY o.id
+    ");
+    $s->bind_param("ii", $finalOrderId, $userId);
+    $s->execute();
+    $order = $s->get_result()->fetch_assoc();
+    $s->close();
+}
+
+// Cancelled / expired checkout that was never paid
+if (!$order && in_array($pending['payment_status'], ['cancelled', 'expired'], true) && intval($pending['used']) === 0) {
+    header('Location: ' . BASE_URL . '/checkout?cancelled=1');
+    exit;
+}
+
+$tries    = intval($_GET['t'] ?? 0);
+$maxTries = 20; // ~60 seconds of auto-refresh
 
 if (!$order) {
-    // Still processing (live webhook not yet fired) — show loading screen
+    // Still processing (webhook not received yet) — waiting screen
     ?>
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Confirming Order — NobleHome</title>
+        <title>Confirming Payment — NobleHome</title>
         <?php include ROOT_PATH . '/link/top.php'; ?>
-        <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
     </head>
-    <body class="bg-gray-50 min-h-screen flex items-center justify-center">
-        <div class="text-center p-8">
-            <div class="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-                <i class="fa-solid fa-clock text-amber-500 text-2xl"></i>
+    <body class="bg-gray-50 min-h-screen text-gray-900">
+        <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
+
+        <main class="max-w-lg mx-auto px-4 py-16">
+            <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                <?php if ($tries < $maxTries): ?>
+                    <span class="mx-auto w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                        <i class="fa-solid fa-spinner fa-spin text-gray-700 text-xl"></i>
+                    </span>
+                    <h1 class="text-lg font-bold text-gray-900 mt-5">Confirming your payment…</h1>
+                    <p class="text-sm text-gray-500 mt-2">
+                        We're waiting for confirmation from PayMongo. This usually takes a few seconds.
+                    </p>
+                    <p class="text-xs text-gray-400 mt-4">This page refreshes automatically — please don't pay again.</p>
+                    <script>
+                        setTimeout(() => {
+                            location.href = <?= json_encode(BASE_URL . '/success?pending=' . $pendingOrderId . '&t=' . ($tries + 1)) ?>;
+                        }, 3000);
+                    </script>
+                <?php else: ?>
+                    <span class="mx-auto w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center">
+                        <i class="fa-solid fa-clock text-amber-600 text-xl"></i>
+                    </span>
+                    <h1 class="text-lg font-bold text-gray-900 mt-5">Still confirming your payment</h1>
+                    <p class="text-sm text-gray-500 mt-2">
+                        This is taking longer than usual. If you completed the payment, your order will appear
+                        in <strong class="font-semibold text-gray-700">My Orders</strong> once it's confirmed. Please don't pay again.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-2 justify-center mt-6">
+                        <a href="<?= BASE_URL ?>/success?pending=<?= $pendingOrderId ?>"
+                            class="h-11 px-5 inline-flex items-center justify-center rounded-md bg-gray-900 hover:bg-black text-white text-sm font-semibold">Check again</a>
+                        <a href="<?= BASE_URL ?>/orders"
+                            class="h-11 px-5 inline-flex items-center justify-center rounded-md border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Go to My Orders</a>
+                    </div>
+                <?php endif; ?>
             </div>
-            <h1 class="text-lg font-bold text-gray-900 mb-2">Payment received!</h1>
-            <p class="text-sm text-gray-500 mb-4">Your order is being confirmed. This usually takes a few seconds.</p>
-            <p class="text-xs text-gray-400 mb-6">Page will refresh automatically…</p>
-            <script>setTimeout(() => location.reload(), 3000);</script>
-        </div>
+        </main>
+
         <?php include ROOT_PATH . '/user/navigation/bottom.php'; ?>
     </body>
     </html>
     <?php
     exit;
 }
-?>
 
+// ── Order items for the confirmation ─────────────────────────────────────────
+$orderItems = [];
+$s = $conn->prepare("
+    SELECT i.product_name, i.colorname, i.sizename, i.quantity, i.line_total,
+           COALESCE(NULLIF(c.imagecolor, ''), p.imageproduct) AS image
+    FROM noblepaidproductitems i
+    LEFT JOIN nobleproduct p ON p.id = i.product_id
+    LEFT JOIN nobleproductcolor c ON c.id = i.color_id
+    WHERE i.order_id = ?
+    ORDER BY i.id ASC
+");
+if ($s) {
+    $oid = intval($order['id']);
+    $s->bind_param("i", $oid);
+    $s->execute();
+    $orderItems = $s->get_result()->fetch_all(MYSQLI_ASSOC);
+    $s->close();
+}
+
+$isPickup  = ($order['delivery_method'] ?? '') === 'pickup';
+$payLabel  = ($order['payment_method'] ?? '') === 'qrph' ? 'QR Ph' : 'PayMongo (Cards & e-wallets)';
+$addrLine  = trim(implode(', ', array_filter([$order['address_full'] ?? '', $order['address_barangay'] ?? '', $order['address_city'] ?? ''])));
+$variantOf = function ($c, $sz) {
+    $parts = [];
+    if (trim((string) $c) !== '' && $c !== 'Default') $parts[] = $c;
+    if (trim((string) $sz) !== '' && $sz !== 'Default') $parts[] = $sz;
+    return implode(' · ', $parts);
+};
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -209,58 +160,128 @@ if (!$order) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Confirmed — NobleHome</title>
     <?php include ROOT_PATH . '/link/top.php'; ?>
-    <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 min-h-screen text-gray-900">
+    <?php include ROOT_PATH . '/user/navigation/top.php'; ?>
 
-  <div class="max-w-4xl mx-auto px-6 py-5">
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-10">
 
-            <!-- Icon -->
-            <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-                <i class="fa-solid fa-check text-green-500 text-2xl"></i>
-            </div>
-
-            <h1 class="text-xl font-bold text-gray-900 mb-1">Order Confirmed!</h1>
-            <p class="text-sm text-gray-500 mb-6">
-                Thank you, <strong><?= htmlspecialchars($order['contact_name']) ?></strong>.<br>
-                Your order has been received and is being prepared.
+        <!-- Confirmation header -->
+        <div class="text-center mb-6">
+            <span class="mx-auto w-14 h-14 rounded-full bg-green-50 border border-green-100 flex items-center justify-center">
+                <i class="fa-solid fa-check text-green-600 text-xl"></i>
+            </span>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900 mt-4">Thank you for your order!</h1>
+            <p class="text-sm text-gray-500 mt-1.5">
+                Hi <strong class="font-semibold text-gray-700"><?= htmlspecialchars($order['contact_name']) ?></strong>,
+                your payment was received and your order is being prepared.
             </p>
+            <p class="text-xs text-gray-500 mt-1">
+                A confirmation will be sent to <?= htmlspecialchars($order['contact_email']) ?>.
+            </p>
+        </div>
 
-            <!-- Order details -->
-            <div class="text-left rounded-xl border border-gray-100 p-4 mb-6 space-y-2">
-                <div class="flex justify-between text-xs">
-                    <span class="text-gray-500">Reference</span>
-                    <span class="font-bold text-gray-800"><?= htmlspecialchars($order['nhccreference']) ?></span>
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+
+            <!-- Reference strip -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100">
+                <div class="px-4 py-3.5">
+                    <p class="text-[11px] text-gray-500">Order number</p>
+                    <p class="text-sm font-bold text-gray-900 mt-0.5 break-all"><?= htmlspecialchars($order['nhccreference']) ?></p>
                 </div>
-                <div class="flex justify-between text-xs">
-                    <span class="text-gray-500">Items</span>
-                    <span class="font-semibold text-gray-700"><?= intval($order['item_count']) ?></span>
+                <div class="px-4 py-3.5">
+                    <p class="text-[11px] text-gray-500">Date</p>
+                    <p class="text-sm font-semibold text-gray-900 mt-0.5">
+                        <?= !empty($order['created_at']) ? date('M j, Y', strtotime($order['created_at'])) : date('M j, Y') ?>
+                    </p>
                 </div>
-                <div class="flex justify-between text-xs">
-                    <span class="text-gray-500">Delivery</span>
-                    <span class="font-semibold text-gray-700"><?= ucfirst($order['delivery_method']) ?></span>
+                <div class="px-4 py-3.5 border-t sm:border-t-0 border-gray-100">
+                    <p class="text-[11px] text-gray-500">Payment</p>
+                    <p class="text-sm font-semibold text-gray-900 mt-0.5"><?= htmlspecialchars($payLabel) ?></p>
                 </div>
-                <div class="flex justify-between text-xs">
-                    <span class="text-gray-500">Total paid</span>
-                    <span class="font-bold text-gray-900">₱<?= number_format(floatval($order['grand_total']), 2) ?></span>
-                </div>
-                <div class="flex justify-between text-xs">
-                    <span class="text-gray-500">Payment status</span>
-                    <span class="text-green-600 font-semibold">
-                        <i class="fa-solid fa-circle-check mr-1"></i>Paid
-                    </span>
+                <div class="px-4 py-3.5 border-t sm:border-t-0 border-gray-100">
+                    <p class="text-[11px] text-gray-500">Status</p>
+                    <p class="text-sm font-semibold text-green-700 mt-0.5"><i class="fa-solid fa-circle-check mr-1 text-xs"></i>Paid</p>
                 </div>
             </div>
 
-            <a href="<?= BASE_URL ?>/"
-                class="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white
-                       text-sm font-bold text-center transition">
-                Continue Shopping
-            </a>
+            <!-- Items -->
+            <?php if (!empty($orderItems)): ?>
+                <ul class="divide-y divide-gray-100 px-5">
+                    <?php foreach ($orderItems as $it):
+                        $v = $variantOf($it['colorname'], $it['sizename']); ?>
+                        <li class="flex items-center gap-3 py-3.5">
+                            <div class="w-14 h-14 shrink-0 rounded-md bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center">
+                                <?php if (!empty($it['image'])): ?>
+                                    <img src="<?= BASE_URL ?>/uploads/<?= htmlspecialchars($it['image']) ?>" alt="" class="w-full h-full object-contain p-0.5" loading="lazy">
+                                <?php else: ?>
+                                    <i class="fa-solid fa-image text-gray-300"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-gray-900 truncate"><?= htmlspecialchars($it['product_name']) ?></p>
+                                <p class="text-xs text-gray-500 mt-0.5">
+                                    <?= $v !== '' ? htmlspecialchars($v) . ' · ' : '' ?>Qty <?= intval($it['quantity']) ?>
+                                </p>
+                            </div>
+                            <p class="text-sm font-semibold text-gray-900 shrink-0">₱<?= number_format(floatval($it['line_total']), 2) ?></p>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
 
+            <!-- Fulfillment + totals -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 px-5 py-5 border-t border-gray-100 bg-gray-50/60">
+                <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                        <?= $isPickup ? 'Store pickup' : 'Delivery address' ?>
+                    </p>
+                    <?php if ($isPickup): ?>
+                        <p class="text-sm text-gray-900 mt-1.5">We'll notify you when your order is ready for pickup.</p>
+                    <?php else: ?>
+                        <p class="text-sm text-gray-900 mt-1.5"><?= htmlspecialchars($addrLine ?: '—') ?></p>
+                        <?php if (!empty($order['truck_name'])): ?>
+                            <p class="text-xs text-gray-500 mt-1"><i class="fa-solid fa-truck mr-1 text-gray-400"></i><?= htmlspecialchars($order['truck_name']) ?></p>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    <p class="text-xs text-gray-500 mt-3">
+                        <i class="fa-solid fa-phone mr-1 text-gray-400"></i><?= htmlspecialchars($order['contact_phone']) ?>
+                    </p>
+                </div>
+
+                <dl class="space-y-1.5 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="text-gray-600">Subtotal</dt>
+                        <dd class="text-gray-900">₱<?= number_format(floatval($order['subtotal']), 2) ?></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-600">VAT (12%)</dt>
+                        <dd class="text-gray-900">₱<?= number_format(floatval($order['vat_amount']), 2) ?></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-600">Delivery</dt>
+                        <dd class="text-gray-900"><?= floatval($order['delivery_fee']) > 0 ? '₱' . number_format(floatval($order['delivery_fee']), 2) : 'Free' ?></dd>
+                    </div>
+                    <div class="flex justify-between items-baseline border-t border-gray-200 pt-2">
+                        <dt class="font-semibold text-gray-900">Total paid</dt>
+                        <dd class="text-lg font-bold text-gray-900">₱<?= number_format(floatval($order['grand_total']), 2) ?></dd>
+                    </div>
+                </dl>
+            </div>
         </div>
-    </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col sm:flex-row gap-3 mt-5">
+            <a href="<?= BASE_URL ?>/orders"
+                class="flex-1 h-12 inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 hover:bg-black text-white text-sm font-semibold">
+                <i class="fa-solid fa-truck-fast text-xs"></i> Track my order
+            </a>
+            <a href="<?= BASE_URL ?>/"
+                class="flex-1 h-12 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Continue shopping
+            </a>
+        </div>
+    </main>
 
     <?php include ROOT_PATH . '/user/navigation/bottom.php'; ?>
 </body>
