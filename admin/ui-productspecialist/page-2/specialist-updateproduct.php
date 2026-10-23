@@ -28,9 +28,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['category_action'])) {
 }
 
 // ── Product update ─────────────────────────────────────────────────────────
+// Post/Redirect/Get + one-time form token:
+//  - after a successful save we redirect to a normal GET page, so pressing Refresh
+//    never re-sends the form (which used to overwrite stock with old values);
+//  - a re-sent/old form (Back button, double click) is rejected by the token check.
+$SELF = BASE_URL . '/ps-updateproductlist?id=' . $productId;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_product'])) {
-    include ROOT_PATH . '/admin/ui-productspecialist/backend/backend-page-2/specialist-updateproduct-handler.php';
+    $postedToken = $_POST['form_token'] ?? '';
+    $validToken  = $_SESSION['ps_update_token'][$productId] ?? '';
+
+    if ($postedToken === '' || $validToken === '' || !hash_equals($validToken, $postedToken)) {
+        $error = 'This form was already submitted or is out of date. The latest product data has been reloaded — please review and save again.';
+    } else {
+        unset($_SESSION['ps_update_token'][$productId]); // one use only
+        include ROOT_PATH . '/admin/ui-productspecialist/backend/backend-page-2/specialist-updateproduct-handler.php';
+
+        if ($success) {
+            $_SESSION['ps_update_flash'] = $success;
+            header('Location: ' . $SELF);
+            exit;
+        }
+    }
 }
+
+// Flash message from the redirect above
+if (!empty($_SESSION['ps_update_flash'])) {
+    $success = $_SESSION['ps_update_flash'];
+    unset($_SESSION['ps_update_flash']);
+}
+
+// New one-time token for this form render
+$_SESSION['ps_update_token'][$productId] = bin2hex(random_bytes(16));
+$formToken = $_SESSION['ps_update_token'][$productId];
 
 // ── Load fresh product data (after possible update) ───────────────────────
 $product = loadProductById($conn, $productId);
@@ -42,7 +72,6 @@ if (!$product) {
 $dbColors = loadProductColors($conn, $productId);
 $categories = loadCategories($conn);
 $uploadUrl = BASE_URL . '/uploads/';
-$SELF = BASE_URL . '/ps-updateproductlist?id=' . $productId;
 
 // ── Detect "simple product" pattern (1 color named "Default" with 1 variant
 //    named "Default") — created via the Insert page's simple-product toggle.
@@ -163,6 +192,7 @@ if (
         <form method="POST" enctype="multipart/form-data" id="productForm" novalidate
             action="<?= htmlspecialchars($SELF) ?>">
             <input type="hidden" name="product_id" value="<?= $productId ?>">
+            <input type="hidden" name="form_token" value="<?= htmlspecialchars($formToken) ?>">
 
             <!-- ░░ STEP 1 — Product Info ░░ -->
             <div id="step-panel-1" class="step-panel">
@@ -328,6 +358,10 @@ if (
                                 <input type="hidden" name="variant_id[0][0]" id="simple-variant-id"
                                     value="<?= htmlspecialchars((string) $simpleVariantId) ?>" <?= $isSimpleProduct ? '' : 'disabled' ?>>
                                 <input type="hidden" name="size_name[0][0]" value="Default" <?= $isSimpleProduct ? '' : 'disabled' ?>>
+                                <!-- Stock shown when the page loaded — the handler only applies the CHANGE,
+                                     so orders placed while this page was open are not undone. -->
+                                <input type="hidden" name="size_stock_original[0][0]"
+                                    value="<?= $simpleVariantId ? htmlspecialchars((string) $simpleStock) : '' ?>" <?= $isSimpleProduct ? '' : 'disabled' ?>>
 
                                 <div class="grid grid-cols-7 gap-3">
                                     <div>
@@ -988,6 +1022,8 @@ if (
             row.innerHTML = `
             <!-- Hidden DB id: empty = new variant -->
             <input type="hidden" name="variant_id[${ci}][${vi}]" value="${escHtml(String(dbVarId))}">
+            <!-- Stock when the page loaded (handler applies only the change) -->
+            <input type="hidden" name="size_stock_original[${ci}][${vi}]" value="${dbVarId ? escHtml(String(dbStock)) : ''}">
             <div class="col-span-2">
                 <label class="block text-[11px] text-gray-600 font-semibold mb-1">
                     Size Name <span class="text-red-400">*</span> ${badgeHtml}

@@ -159,6 +159,7 @@ $stmt->close();
         $sizePrices = $_POST['size_price'][$ci] ?? [];
         $discounts = $_POST['size_discount'][$ci] ?? [];
         $stocks = $_POST['size_stock'][$ci] ?? [];
+        $origStocks = $_POST['size_stock_original'][$ci] ?? [];
         $widths = $_POST['size_width'][$ci] ?? [];
         $heights = $_POST['size_height'][$ci] ?? [];
         $lengths = $_POST['size_length'][$ci] ?? [];
@@ -191,7 +192,7 @@ $stmt->close();
             $vRawId = $postedVarIds[$vi] ?? '';
             $priceSize = floatval($sizePrices[$vi] ?? 0);
             $discount = floatval($discounts[$vi] ?? 0);
-            $stock = intval($stocks[$vi] ?? 0);
+            $stock = max(0, intval($stocks[$vi] ?? 0));
             $width = floatval($widths[$vi] ?? 0);
             $height = floatval($heights[$vi] ?? 0);
             $length = floatval($lengths[$vi] ?? 0);
@@ -201,15 +202,25 @@ $stmt->close();
                 $variantId = intval($vRawId);
                 $weight = floatval($weights[$vi] ?? 0);
                 $weightUnit = $weightUnits[$vi] ?? 'kg';
+                // Stock: apply only the CHANGE the admin made (new − value shown when the
+                // page loaded). Orders placed while the page was open keep their deduction.
+                // e.g. page showed 10, admin left it at 10, a customer bought 2 (DB = 8)
+                //      → change = 0 → stays 8 (before: it was reset back to 10).
+                $origRaw = $origStocks[$vi] ?? '';
+                $useDelta = ($origRaw !== '' && is_numeric($origRaw));
+                $stockDelta = $useDelta ? ($stock - intval($origRaw)) : 0;
+
                 $stmt = $conn->prepare(
                     "UPDATE nobleproductvariant
                      SET sizename=?, pricesize=?, discountvariant=?,
                          width=?, height=?, leght=?, dimension_unit=?,
-                         weight=?, weight_unit=?, stock=?
+                         weight=?, weight_unit=?,
+                         stock = IF(?, GREATEST(0, stock + ?), ?)
                      WHERE id=?"
                 );
+                $useDeltaInt = $useDelta ? 1 : 0;
                 $stmt->bind_param(
-                    "sdddddsdsii",
+                    "sdddddsdsiiii",
                     $sizeName,
                     $priceSize,
                     $discount,
@@ -219,6 +230,8 @@ $stmt->close();
                     $dimUnit,
                     $weight,
                     $weightUnit,
+                    $useDeltaInt,
+                    $stockDelta,
                     $stock,
                     $variantId
                 );
