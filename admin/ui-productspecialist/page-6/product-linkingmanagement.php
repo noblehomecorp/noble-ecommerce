@@ -89,7 +89,7 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
             </div>
             <div class="relative w-full sm:w-80">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                <input type="text" id="productSearch" placeholder="Search products…" oninput="renderProducts()"
+                <input type="text" id="productSearch" placeholder="Search products…" oninput="onSearchInput()"
                     class="w-full pl-8 pr-3 h-10 rounded-md border border-gray-300 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5">
             </div>
         </div>
@@ -111,7 +111,7 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
                     <span class="flex items-center gap-2 text-xs font-medium text-gray-700">
                         <i class="fa-solid fa-link-slash text-[11px] text-red-500"></i> Unlinked products only
                     </span>
-                    <input type="checkbox" id="unlinkedOnly" onchange="renderProducts()" class="w-4 h-4 accent-red-600">
+                    <input type="checkbox" id="unlinkedOnly" onchange="renderProducts(true)" class="w-4 h-4 accent-red-600">
                 </label>
 
                 <div class="flex-1 overflow-y-auto nh-thin-scroll px-2 py-2">
@@ -157,7 +157,25 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
                     <p id="visibleLabel" class="text-[11px] text-gray-500"></p>
                 </div>
 
-                <div id="productGrid" class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+                <div id="productGrid" class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 scroll-mt-6"></div>
+
+                <!-- Pagination -->
+                <div id="pagination" class="hidden mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <p id="pageInfo" class="text-[11px] text-gray-500"></p>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                            Per page
+                            <select id="pageSize" onchange="changePageSize(this.value)"
+                                class="h-8 px-2 rounded-md border border-gray-300 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900">
+                                <option value="12">12</option>
+                                <option value="24" selected>24</option>
+                                <option value="48">48</option>
+                                <option value="96">96</option>
+                            </select>
+                        </label>
+                        <nav id="pageButtons" class="flex items-center gap-1" aria-label="Pagination"></nav>
+                    </div>
+                </div>
                 <div id="noProductsMsg" class="hidden bg-white border border-gray-200 rounded-lg py-12 text-center">
                     <i class="fa-solid fa-box-open text-2xl text-gray-300"></i>
                     <p class="text-xs text-gray-500 mt-2">No products match your search or filter.</p>
@@ -224,6 +242,11 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
         const baseUrl = '<?= rtrim(BASE_URL, '/') ?>';
         const selectedProducts = new Set();
 
+        // ---- Pagination state (only the current page is rendered → no lag with many products) ----
+        let currentPage = 1;
+        let pageSize = 24;
+        try { pageSize = parseInt(localStorage.getItem('nh_link_page_size'), 10) || 24; } catch (e) { }
+
         function escHtml(str) {
             return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
@@ -263,6 +286,58 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
             selectedProducts.clear();
             renderProducts();
             updateApplyBar();
+        }
+
+        let searchTimer = null;
+        function onSearchInput() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => renderProducts(true), 200); // debounce typing
+        }
+
+        function changePageSize(v) {
+            pageSize = parseInt(v, 10) || 24;
+            try { localStorage.setItem('nh_link_page_size', String(pageSize)); } catch (e) { }
+            renderProducts(true);
+        }
+
+        function goToPage(n) {
+            currentPage = n;
+            renderProducts();
+            document.getElementById('productGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function pageList(cur, total) {
+            // e.g. 1 … 4 5 6 … 20
+            const out = [];
+            const add = v => { if (out[out.length - 1] !== v) out.push(v); };
+            for (let i = 1; i <= total; i++) {
+                if (i === 1 || i === total || Math.abs(i - cur) <= 1) add(i);
+                else add('…');
+            }
+            return out;
+        }
+
+        function renderPagination(total, start, end, totalPages) {
+            const wrap = document.getElementById('pagination');
+            wrap.classList.toggle('hidden', total === 0);
+            document.getElementById('pageInfo').textContent = total
+                ? `Showing ${start + 1}–${end} of ${total}` : '';
+
+            const btn = (label, page, { active = false, disabled = false, aria = '' } = {}) => `
+                <button type="button" ${disabled ? 'disabled' : `onclick="goToPage(${page})"`} ${aria ? `aria-label="${aria}"` : ''}
+                    class="min-w-8 h-8 px-2 rounded-md text-xs font-semibold border transition
+                           ${active ? 'bg-gray-900 border-gray-900 text-white'
+                    : disabled ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white'
+                        : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'}">${label}</button>`;
+
+            let html = btn('<i class="fa-solid fa-chevron-left text-[10px]"></i>', currentPage - 1, { disabled: currentPage <= 1, aria: 'Previous page' });
+            pageList(currentPage, totalPages).forEach(p => {
+                html += p === '…'
+                    ? '<span class="px-1 text-xs text-gray-400">…</span>'
+                    : btn(p, p, { active: p === currentPage });
+            });
+            html += btn('<i class="fa-solid fa-chevron-right text-[10px]"></i>', currentPage + 1, { disabled: currentPage >= totalPages, aria: 'Next page' });
+            document.getElementById('pageButtons').innerHTML = html;
         }
 
         function onSubFilterChange() {
@@ -336,20 +411,30 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
         }
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTagsModal(); });
 
-        function renderProducts() {
+        function renderProducts(resetPage = false) {
             const query = document.getElementById('productSearch').value.trim().toLowerCase();
             const unlinkedOnly = document.getElementById('unlinkedOnly').checked;
             const grid = document.getElementById('productGrid');
-            grid.innerHTML = '';
-
             const checkedSubs = getCheckedSubIds().map(Number);
 
-            let visibleCount = 0;
-            products.forEach(p => {
+            // 1) Filter
+            const filtered = products.filter(p => {
                 const nameMatch = String(p.name).toLowerCase().includes(query);
                 const linkMatch = !unlinkedOnly || (productSubIds[p.id] || []).length === 0;
-                if (!nameMatch || !linkMatch) return;
-                visibleCount++;
+                return nameMatch && linkMatch;
+            });
+            const visibleCount = filtered.length;
+
+            // 2) Paginate
+            if (resetPage) currentPage = 1;
+            const totalPages = Math.max(1, Math.ceil(visibleCount / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const start = (currentPage - 1) * pageSize;
+            const end = Math.min(start + pageSize, visibleCount);
+
+            // 3) Render only this page
+            const frag = document.createDocumentFragment();
+            filtered.slice(start, end).forEach(p => {
 
                 const checked = selectedProducts.has(String(p.id));
                 const matchedLinked = alreadyLinkedChecked(p.id);
@@ -395,12 +480,14 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
                         <p class="nh-clamp-2 text-xs font-semibold text-gray-900 leading-snug min-h-[2rem]">${escHtml(p.name)}</p>
                         <div class="mt-2 flex">${tagSummaryFor(p.id)}</div>
                     </div>`;
-                grid.appendChild(card);
+                frag.appendChild(card);
             });
+            grid.replaceChildren(frag);
 
             document.getElementById('noProductsMsg').classList.toggle('hidden', visibleCount !== 0);
             document.getElementById('visibleLabel').textContent =
-                `${visibleCount} of ${products.length} shown` + (selectedProducts.size ? ` · ${selectedProducts.size} selected` : '');
+                `${visibleCount} of ${products.length} products` + (selectedProducts.size ? ` · ${selectedProducts.size} selected` : '');
+            renderPagination(visibleCount, start, end, totalPages);
         }
 
         function toggleProductSelect(productId, card) {
@@ -509,6 +596,8 @@ $unlinkedCount = count(array_filter($productSubIds, fn($s) => empty($s)));
         }
 
         // initial render
+        document.getElementById('pageSize').value = String(pageSize);
+        if (!document.getElementById('pageSize').value) { pageSize = 24; document.getElementById('pageSize').value = '24'; }
         renderProducts();
         updateApplyBar();
     </script>

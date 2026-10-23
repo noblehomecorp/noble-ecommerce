@@ -129,6 +129,16 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products — NobleHome</title>
     <?php include ROOT_PATH . '/link/top.php'; ?>
+    <style>
+        /* Scrollable product table with sticky header */
+        .nh-table-scroll { max-height: calc(100vh - 260px); min-height: 240px; overflow: auto;
+            scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        .nh-table-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .nh-table-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+        .nh-table-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .nh-table-scroll thead th { position: sticky; top: 0; z-index: 10; background: #f9fafb;
+            box-shadow: inset 0 -1px 0 #e5e7eb; }
+    </style>
 </head>
 
 <body class="bg-gray-50 text-gray-900">
@@ -189,10 +199,11 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
 
         <!-- Table -->
         <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table class="w-full text-xs" id="products-table">
+            <div class="nh-table-scroll" id="products-scroll">
+            <table class="w-full text-xs min-w-[960px]" id="products-table">
                 <thead>
                     <tr
-                        class="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500">
+                        class="text-[11px] font-semibold text-gray-500">
                         <th class="text-left px-5 py-3 w-12 font-semibold">#</th>
                         <th class="text-left px-5 py-3">Product</th>
                         <th class="text-left px-5 py-3">Category</th>
@@ -240,7 +251,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                                             <p class="font-semibold text-gray-900 leading-snug">
                                                 <?= htmlspecialchars($p['name']) ?></p>
                                             <?php if (!empty($p['description'])): ?>
-                                                <p class="text-xs text-gray-400 mt-0.5 line-clamp-1 max-w-xs">
+                                                <p class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
                                                     <?= htmlspecialchars($p['description']) ?>
                                                 </p>
                                             <?php endif; ?>
@@ -355,6 +366,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
                 <i class="fa-solid fa-magnifying-glass text-3xl mb-3 block text-gray-300"></i>
                 No products match your search.
             </div>
+            </div>
         </div>
 
     </div>
@@ -387,7 +399,7 @@ $uploadUrl = BASE_URL . '/uploads/'; // public URL prefix for product images
             clearBtn.classList.toggle('hidden', !q && !cat);
         }
 
-        searchInput.addEventListener('input', filterTable);
+        searchInput.addEventListener('input', () => { filterTable(); document.getElementById('products-scroll').scrollTop = 0; });
         categoryFilter.addEventListener('change', filterTable);
         clearBtn.addEventListener('click', () => {
             searchInput.value = '';

@@ -5,6 +5,9 @@
 
 $uploadUrl = $uploadUrl ?? BASE_URL . '/uploads/';
 
+// How long a product stays in "New Arrivals" after it was added
+$NEW_ARRIVAL_DAYS = 30; // 1 month
+
 $newArrivals = [];
 $newResult = $conn->query("
     SELECT
@@ -22,7 +25,7 @@ $newResult = $conn->query("
     LEFT JOIN nobleproductcolor c ON c.product_id = p.id
     LEFT JOIN nobleproductvariant v ON v.color_id = c.id
     LEFT JOIN noblereview r ON r.product_id = p.id
-    WHERE p.created_at >= (NOW() - INTERVAL 3 DAY)
+    WHERE p.created_at >= (NOW() - INTERVAL " . (int) $NEW_ARRIVAL_DAYS . " DAY)
     GROUP BY p.id
     ORDER BY RAND()
     LIMIT 10
