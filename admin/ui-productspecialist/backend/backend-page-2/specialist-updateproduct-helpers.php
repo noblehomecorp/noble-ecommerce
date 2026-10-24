@@ -43,7 +43,7 @@ function loadProductColors(mysqli $conn, int $productId): array
         return [];
 
     // Load all variants for all colors in one query
-    $colorIds = implode(',', array_keys($colors));
+    $colorIds = implode(',', array_map('intval', array_keys($colors)));
     $variantRows = $conn->query(
         "SELECT id, color_id, sizename, pricesize, discountvariant,
                 width, height, leght, dimension_unit, weight, weight_unit, stock
@@ -59,30 +59,65 @@ function loadProductColors(mysqli $conn, int $productId): array
 }
 
 /**
- * Reuse the same WebP converter from the insert helpers.
- * (Include insert helpers before this file, or duplicate the function here.)
+ * Converts an uploaded image to WebP — resized to max 1600px so it stays fast.
+ * (Converting full-size 4000px phone photos is what made saving slow.)
+ * If the insert helpers are included first, their convertToWebp() is used instead.
  */
 if (!function_exists('convertToWebp')) {
-    function convertToWebp(array $file, string $destDir): string|false
+    function convertToWebp(array $file, string $destDir, int $maxDim = 1600, int $quality = 82): string|false
     {
-        $tmp = $file['tmp_name'];
+        $tmp = $file['tmp_name'] ?? '';
+        if ($tmp === '' || !is_file($tmp))
+            return false;
+
         $mime = mime_content_type($tmp);
+        if (!is_dir($destDir))
+            mkdir($destDir, 0755, true);
+        $filename = uniqid('product_', true) . '.webp';
+        $destPath = rtrim($destDir, '/') . '/' . $filename;
+
+        // Fast path: already a small WebP (e.g. compressed by the browser) → just move it
+        $info = @getimagesize($tmp);
+        if ($mime === 'image/webp' && $info && max($info[0], $info[1]) <= $maxDim) {
+            return (move_uploaded_file($tmp, $destPath) || copy($tmp, $destPath)) ? $filename : false;
+        }
+
         $src = match ($mime) {
-            'image/jpeg' => imagecreatefromjpeg($tmp),
-            'image/png' => imagecreatefrompng($tmp),
-            'image/gif' => imagecreatefromgif($tmp),
-            'image/webp' => imagecreatefromwebp($tmp),
-            default => false,
+            'image/jpeg' => @imagecreatefromjpeg($tmp),
+            'image/png'  => @imagecreatefrompng($tmp),
+            'image/gif'  => @imagecreatefromgif($tmp),
+            'image/webp' => @imagecreatefromwebp($tmp),
+            default      => false,
         };
         if (!$src)
             return false;
-        $filename = uniqid('product_', true) . '.webp';
-        $destPath = rtrim($destDir, '/') . '/' . $filename;
-        if (!is_dir($destDir))
-            mkdir($destDir, 0755, true);
-        imagewebp($src, $destPath, 85);
+
+        // Palette images (some PNG/GIF) must be truecolor for WebP + keep transparency
+        if (!imageistruecolor($src)) {
+            imagepalettetotruecolor($src);
+        }
+        imagealphablending($src, true);
+        imagesavealpha($src, true);
+
+        // Resize down if larger than $maxDim
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $scale = min(1, $maxDim / max($w, $h));
+        if ($scale < 1) {
+            $nw = (int) round($w * $scale);
+            $nh = (int) round($h * $scale);
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($src);
+            $src = $dst;
+        }
+
+        $ok = imagewebp($src, $destPath, $quality);
         imagedestroy($src);
-        return $filename;
+        return $ok ? $filename : false;
     }
 }
 
