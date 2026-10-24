@@ -1,275 +1,136 @@
 <?php
-// specialist-updateproduct-handler.php
+// specialist-updateproduct-helpers.php
 
-$uploadDir = ROOT_PATH . '/uploads/';
-
-$conn->begin_transaction();
-
-
-try {
-    // ── 1. Product info ────────────────────────────────────────────────────
-    $name = trim($_POST['product_name'] ?? '');
-    $description = trim($_POST['product_description'] ?? '');
-    $category = trim($_POST['product_category'] ?? '');
-    $unit = trim($_POST['product_unit'] ?? '');
-
-    if (empty($name) || empty($category)) {
-        throw new Exception('Product name and category are required.');
-    }
-
-    $newProductImage = null;
-    if (!empty($_FILES['product_image']['tmp_name'])) {
-        $converted = convertToWebp($_FILES['product_image'], $uploadDir);
-        if (!$converted)
-            throw new Exception('Failed to convert product image to WebP.');
-        $newProductImage = $converted;
-    }
-
-    // ── Specifications (JSON) ──────────────────────────────────────────────
-    $specKeys = $_POST['spec_key'] ?? [];
-    $specValues = $_POST['spec_value'] ?? [];
-    $specsArr = [];
-    foreach ($specKeys as $i => $key) {
-        $key = trim($key);
-        $val = trim($specValues[$i] ?? '');
-        if ($key !== '')
-            $specsArr[$key] = $val;
-    }
-    $specificationsJson = !empty($specsArr) ? json_encode($specsArr, JSON_UNESCAPED_UNICODE) : null;
-
-    // ── Gallery (merge existing - deleted + new uploads) ───────────────────
-    $existingGallery = [];
-    $rawGallery = $conn->query("SELECT gallery FROM nobleproduct WHERE id = $productId")->fetch_assoc();
-    if (!empty($rawGallery['gallery'])) {
-        $existingGallery = json_decode($rawGallery['gallery'], true) ?? [];
-    }
-
-    // Remove files the user marked for deletion
-    $toDelete = $_POST['gallery_delete'] ?? [];
-    $existingGallery = array_values(array_filter($existingGallery, fn($f) => !in_array($f, $toDelete)));
-
-    // Upload new gallery images
-    if (!empty($_FILES['gallery_images']['tmp_name'])) {
-        foreach ($_FILES['gallery_images']['tmp_name'] as $gi => $tmpName) {
-            if (empty($tmpName))
-                continue;
-            $fakeFile = [
-                'tmp_name' => $tmpName,
-                'type' => $_FILES['gallery_images']['type'][$gi],
-            ];
-            $galleryFile = convertToWebp($fakeFile, $uploadDir);
-            if (!$galleryFile)
-                throw new Exception('Failed to convert a gallery image to WebP.');
-            $existingGallery[] = $galleryFile;
-        }
-    }
-    $galleryJson = !empty($existingGallery) ? json_encode(array_values($existingGallery)) : null;
-
-    // ── Update product ─────────────────────────────────────────────────────
-    $updatedBy = $_SESSION['account_id'] ?? null;
-
-if ($newProductImage !== null) {
+function loadProductById(mysqli $conn, int $id): ?array
+{
     $stmt = $conn->prepare(
-        "UPDATE nobleproduct SET name=?, imageproduct=?, description=?, category=?, unit=?, specifications=?, gallery=?, updated_by=? WHERE id=?"
+        "SELECT p.id, p.name, p.imageproduct, p.description, p.category, p.unit,
+                p.specifications, p.gallery, p.created_by, p.updated_by,
+                creator.name AS created_by_name,
+                editor.name  AS updated_by_name
+         FROM nobleproduct p
+         LEFT JOIN noblerole creator ON creator.id = p.created_by
+         LEFT JOIN noblerole editor  ON editor.id  = p.updated_by
+         WHERE p.id = ? LIMIT 1"
     );
-    $stmt->bind_param("sssssssii", $name, $newProductImage, $description, $category, $unit, $specificationsJson, $galleryJson, $updatedBy, $productId);
-} else {
-    $stmt = $conn->prepare(
-        "UPDATE nobleproduct SET name=?, description=?, category=?, unit=?, specifications=?, gallery=?, updated_by=? WHERE id=?"
-    );
-    $stmt->bind_param("ssssssii", $name, $description, $category, $unit, $specificationsJson, $galleryJson, $updatedBy, $productId);
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
 }
-$stmt->execute();
-$stmt->close();
 
-    // ── 2. Colors ──────────────────────────────────────────────────────────
-    $postedColorIds = $_POST['color_id'] ?? [];
-    $colorNames = $_POST['color_name'] ?? [];
-    $colorPrices = $_POST['color_price'] ?? [];
+function loadProductColors(mysqli $conn, int $productId): array
+{
+    $colors = [];
 
-    // Determine which existing color IDs are being kept
-    $keepColorIds = [];
-    foreach ($postedColorIds as $rawId) {
-        if ($rawId !== '')
-            $keepColorIds[] = intval($rawId);
-    }
-
-    // Delete colors (and variants) no longer in the form
-    $existingColors = $conn->query(
-        "SELECT id FROM nobleproductcolor WHERE product_id = $productId"
+    $stmt = $conn->prepare(
+        "SELECT id, colorname, imagecolor, pricecolor
+         FROM nobleproductcolor
+         WHERE product_id = ?
+         ORDER BY id ASC"
     );
-    while ($ec = $existingColors->fetch_assoc()) {
-        if (!in_array((int) $ec['id'], $keepColorIds)) {
-            $conn->query("DELETE FROM nobleproductvariant WHERE color_id = {$ec['id']}");
-            $conn->query("DELETE FROM nobleproductcolor WHERE id = {$ec['id']}");
-        }
+    $stmt->bind_param("i", $productId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $row['variants'] = [];
+        $colors[$row['id']] = $row;
+    }
+    $stmt->close();
+
+    if (empty($colors))
+        return [];
+
+    // Load all variants for all colors in one query
+    $colorIds = implode(',', array_map('intval', array_keys($colors)));
+    $variantRows = $conn->query(
+        "SELECT id, color_id, sizename, pricesize, discountvariant,
+                width, height, leght, dimension_unit, weight, weight_unit, stock
+         FROM nobleproductvariant
+         WHERE color_id IN ($colorIds)
+         ORDER BY color_id ASC, id ASC"
+    );
+    while ($v = $variantRows->fetch_assoc()) {
+        $colors[$v['color_id']]['variants'][] = $v;
     }
 
-    foreach ($postedColorIds as $ci => $rawId) {
-        $colorName = trim($colorNames[$ci] ?? '');
-        $priceColor = floatval($colorPrices[$ci] ?? 0);
-        if (empty($colorName))
-            continue;
+    return array_values($colors);
+}
 
-        // Color image upload
-        $newColorImage = null;
-        if (!empty($_FILES['color_image']['tmp_name'][$ci])) {
-            $fakeFile = [
-                'tmp_name' => $_FILES['color_image']['tmp_name'][$ci],
-                'type' => $_FILES['color_image']['type'][$ci],
-            ];
-            $converted = convertToWebp($fakeFile, $uploadDir);
-            if (!$converted)
-                throw new Exception("Failed to convert color image ($colorName) to WebP.");
-            $newColorImage = $converted;
+/**
+ * Converts an uploaded image to WebP — resized to max 1600px so it stays fast.
+ * (Converting full-size 4000px phone photos is what made saving slow.)
+ * If the insert helpers are included first, their convertToWebp() is used instead.
+ */
+if (!function_exists('convertToWebp')) {
+    function convertToWebp(array $file, string $destDir, int $maxDim = 1600, int $quality = 82): string|false
+    {
+        $tmp = $file['tmp_name'] ?? '';
+        if ($tmp === '' || !is_file($tmp))
+            return false;
+
+        $mime = mime_content_type($tmp);
+        if (!is_dir($destDir))
+            mkdir($destDir, 0755, true);
+        $filename = uniqid('product_', true) . '.webp';
+        $destPath = rtrim($destDir, '/') . '/' . $filename;
+
+        // Fast path: already a small WebP (e.g. compressed by the browser) → just move it
+        $info = @getimagesize($tmp);
+        if ($mime === 'image/webp' && $info && max($info[0], $info[1]) <= $maxDim) {
+            return (move_uploaded_file($tmp, $destPath) || copy($tmp, $destPath)) ? $filename : false;
         }
 
-        if ($rawId !== '') {
-            // Update existing color
-            $colorId = intval($rawId);
-            if ($newColorImage !== null) {
-                $stmt = $conn->prepare(
-                    "UPDATE nobleproductcolor SET colorname=?, imagecolor=?, pricecolor=? WHERE id=?"
-                );
-                $stmt->bind_param("ssdi", $colorName, $newColorImage, $priceColor, $colorId);
-            } else {
-                $stmt = $conn->prepare(
-                    "UPDATE nobleproductcolor SET colorname=?, pricecolor=? WHERE id=?"
-                );
-                $stmt->bind_param("sdi", $colorName, $priceColor, $colorId);
-            }
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            // Insert new color
-            $imgVal = $newColorImage ?? '';
-            $stmt = $conn->prepare(
-                "INSERT INTO nobleproductcolor (product_id, colorname, imagecolor, pricecolor)
-                 VALUES (?, ?, ?, ?)"
-            );
-            $stmt->bind_param("issd", $productId, $colorName, $imgVal, $priceColor);
-            $stmt->execute();
-            $colorId = $conn->insert_id;
-            $stmt->close();
+        $src = match ($mime) {
+            'image/jpeg' => @imagecreatefromjpeg($tmp),
+            'image/png'  => @imagecreatefrompng($tmp),
+            'image/gif'  => @imagecreatefromgif($tmp),
+            'image/webp' => @imagecreatefromwebp($tmp),
+            default      => false,
+        };
+        if (!$src)
+            return false;
+
+        // Palette images (some PNG/GIF) must be truecolor for WebP + keep transparency
+        if (!imageistruecolor($src)) {
+            imagepalettetotruecolor($src);
+        }
+        imagealphablending($src, true);
+        imagesavealpha($src, true);
+
+        // Resize down if larger than $maxDim
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $scale = min(1, $maxDim / max($w, $h));
+        if ($scale < 1) {
+            $nw = (int) round($w * $scale);
+            $nh = (int) round($h * $scale);
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($src);
+            $src = $dst;
         }
 
-        // ── 3. Variants for this color ─────────────────────────────────────
-        $postedVarIds = $_POST['variant_id'][$ci] ?? [];
-        $sizeNames = $_POST['size_name'][$ci] ?? [];
-        $sizePrices = $_POST['size_price'][$ci] ?? [];
-        $discounts = $_POST['size_discount'][$ci] ?? [];
-        $stocks = $_POST['size_stock'][$ci] ?? [];
-        $origStocks = $_POST['size_stock_original'][$ci] ?? [];
-        $widths = $_POST['size_width'][$ci] ?? [];
-        $heights = $_POST['size_height'][$ci] ?? [];
-        $lengths = $_POST['size_length'][$ci] ?? [];
-        $dimUnits = $_POST['size_dimension_unit'][$ci] ?? [];
-        $weights = $_POST['size_weight'][$ci] ?? [];
-        $weightUnits = $_POST['size_weight_unit'][$ci] ?? [];
-
-        // Delete variants removed by user (only relevant for existing colors)
-        if ($rawId !== '') {
-            $keepVarIds = [];
-            foreach ($postedVarIds as $vRawId) {
-                if ($vRawId !== '')
-                    $keepVarIds[] = intval($vRawId);
-            }
-            $existingVars = $conn->query(
-                "SELECT id FROM nobleproductvariant WHERE color_id = $colorId"
-            );
-            while ($ev = $existingVars->fetch_assoc()) {
-                if (!in_array((int) $ev['id'], $keepVarIds)) {
-                    $conn->query("DELETE FROM nobleproductvariant WHERE id = {$ev['id']}");
-                }
-            }
-        }
-
-        foreach ($sizeNames as $vi => $sizeName) {
-            $sizeName = trim($sizeName);
-            if (empty($sizeName))
-                continue;
-
-            $vRawId = $postedVarIds[$vi] ?? '';
-            $priceSize = floatval($sizePrices[$vi] ?? 0);
-            $discount = floatval($discounts[$vi] ?? 0);
-            $stock = max(0, intval($stocks[$vi] ?? 0));
-            $width = floatval($widths[$vi] ?? 0);
-            $height = floatval($heights[$vi] ?? 0);
-            $length = floatval($lengths[$vi] ?? 0);
-            $dimUnit = $dimUnits[$vi] ?? 'cm';
-
-            if ($vRawId !== '') {
-                $variantId = intval($vRawId);
-                $weight = floatval($weights[$vi] ?? 0);
-                $weightUnit = $weightUnits[$vi] ?? 'kg';
-                // Stock: apply only the CHANGE the admin made (new − value shown when the
-                // page loaded). Orders placed while the page was open keep their deduction.
-                // e.g. page showed 10, admin left it at 10, a customer bought 2 (DB = 8)
-                //      → change = 0 → stays 8 (before: it was reset back to 10).
-                $origRaw = $origStocks[$vi] ?? '';
-                $useDelta = ($origRaw !== '' && is_numeric($origRaw));
-                $stockDelta = $useDelta ? ($stock - intval($origRaw)) : 0;
-
-                $stmt = $conn->prepare(
-                    "UPDATE nobleproductvariant
-                     SET sizename=?, pricesize=?, discountvariant=?,
-                         width=?, height=?, leght=?, dimension_unit=?,
-                         weight=?, weight_unit=?,
-                         stock = IF(?, GREATEST(0, stock + ?), ?)
-                     WHERE id=?"
-                );
-                $useDeltaInt = $useDelta ? 1 : 0;
-                $stmt->bind_param(
-                    "sdddddsdsiiii",
-                    $sizeName,
-                    $priceSize,
-                    $discount,
-                    $width,
-                    $height,
-                    $length,
-                    $dimUnit,
-                    $weight,
-                    $weightUnit,
-                    $useDeltaInt,
-                    $stockDelta,
-                    $stock,
-                    $variantId
-                );
-                $stmt->execute();
-                $stmt->close();
-            } else {
-                $weight = floatval($weights[$vi] ?? 0);
-                $weightUnit = $weightUnits[$vi] ?? 'kg';
-                $stmt = $conn->prepare(
-                    "INSERT INTO nobleproductvariant
-                        (color_id, sizename, pricesize, discountvariant,
-                         width, height, leght, dimension_unit, weight, weight_unit, stock)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                );
-                $stmt->bind_param(
-                    "isdddddsdsi",
-                    $colorId,
-                    $sizeName,
-                    $priceSize,
-                    $discount,
-                    $width,
-                    $height,
-                    $length,
-                    $dimUnit,
-                    $weight,
-                    $weightUnit,
-                    $stock
-                );
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
+        $ok = imagewebp($src, $destPath, $quality);
+        imagedestroy($src);
+        return $ok ? $filename : false;
     }
+}
 
-    $conn->commit();
-    $success = 'Product <strong>' . htmlspecialchars($name) . '</strong> updated successfully.';
-
-} catch (Exception $e) {
-    $conn->rollback();
-    $error = $e->getMessage() . ' | Line: ' . $e->getLine();
+/**
+ * Loads all categories ordered by name.
+ */
+if (!function_exists('loadCategories')) {
+    function loadCategories(mysqli $conn): array
+    {
+        $categories = [];
+        $result = $conn->query("SELECT id, name FROM noblecategory ORDER BY name ASC");
+        while ($row = $result->fetch_assoc())
+            $categories[] = $row;
+        return $categories;
+    }
 }

@@ -193,6 +193,8 @@ if (
             action="<?= htmlspecialchars($SELF) ?>">
             <input type="hidden" name="product_id" value="<?= $productId ?>">
             <input type="hidden" name="form_token" value="<?= htmlspecialchars($formToken) ?>">
+            <!-- Always posted, even when the form is submitted from JS after compressing images -->
+            <input type="hidden" name="submit_product" value="1">
 
             <!-- ░░ STEP 1 — Product Info ░░ -->
             <div id="step-panel-1" class="step-panel">
@@ -1543,6 +1545,98 @@ if (
         })();
 
 
+    </script>
+
+    <!-- Saving overlay -->
+    <div id="nh-saving" class="hidden fixed inset-0 z-[90] bg-gray-900/40 items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+            <i class="fa-solid fa-spinner fa-spin text-2xl text-gray-700"></i>
+            <p class="text-sm font-bold text-gray-900 mt-3" id="nh-saving-title">Saving changes…</p>
+            <p class="text-xs text-gray-500 mt-1" id="nh-saving-text">Please don't close or refresh this page.</p>
+        </div>
+    </div>
+
+    <script>
+        /* ═══════════════════════════════════════════════════════
+           FASTER SAVE: shrink photos in the browser before upload
+           Phone photos are often 3–8 MB / 4000px. Uploading them to the server
+           and converting them there was what made "Save" so slow.
+           Each image is resized to max 1600px and re-encoded (~150–400 KB).
+        ═══════════════════════════════════════════════════════ */
+        const NH_MAX_DIM = 1600;
+        const NH_QUALITY = 0.85;
+        const NH_SKIP_UNDER = 350 * 1024; // already small → upload as-is
+
+        async function nhCompressImage(file) {
+            if (!file || !file.type.startsWith('image/') || file.type === 'image/gif') return file;
+            try {
+                const bmp = await createImageBitmap(file);
+                const scale = Math.min(1, NH_MAX_DIM / Math.max(bmp.width, bmp.height));
+                if (scale === 1 && file.size <= NH_SKIP_UNDER) { bmp.close?.(); return file; }
+
+                const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+                bmp.close?.();
+
+                let blob = await new Promise(r => canvas.toBlob(r, 'image/webp', NH_QUALITY));
+                let type = 'image/webp', ext = 'webp';
+                if (!blob || blob.type !== 'image/webp') { // old browser without WebP encoding
+                    blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', NH_QUALITY));
+                    type = 'image/jpeg'; ext = 'jpg';
+                }
+                if (!blob || blob.size >= file.size) return file; // no gain → keep original
+                const base = file.name.replace(/\.[^.]+$/, '') || 'image';
+                return new File([blob], base + '.' + ext, { type, lastModified: Date.now() });
+            } catch (err) {
+                return file; // can't decode (e.g. HEIC) → let the server handle it
+            }
+        }
+
+        async function nhCompressAllFileInputs(form) {
+            const inputs = Array.from(form.querySelectorAll('input[type="file"]')).filter(i => !i.disabled && i.files && i.files.length);
+            let total = 0, done = 0;
+            inputs.forEach(i => total += i.files.length);
+            for (const input of inputs) {
+                const dt = new DataTransfer();
+                for (const f of Array.from(input.files)) {
+                    document.getElementById('nh-saving-text').textContent =
+                        `Optimizing images… (${++done} of ${total})`;
+                    dt.items.add(await nhCompressImage(f));
+                }
+                input.files = dt.files;
+            }
+        }
+
+        (function () {
+            const form = document.getElementById('productForm');
+            let busy = false;
+            // Registered last → runs after the gallery + validation submit handlers
+            form.addEventListener('submit', async function (e) {
+                if (e.defaultPrevented) return;      // validation failed
+                e.preventDefault();
+                if (busy) return;                     // ignore double clicks
+                busy = true;
+
+                const overlay = document.getElementById('nh-saving');
+                overlay.classList.remove('hidden'); overlay.classList.add('flex');
+                form.querySelectorAll('button[type="submit"]').forEach(b => b.disabled = true);
+
+                await nhCompressAllFileInputs(form);
+
+                document.getElementById('nh-saving-text').textContent = "Uploading… please don't close or refresh this page.";
+                HTMLFormElement.prototype.submit.call(form); // native submit (no second submit event)
+            });
+
+            // Back/forward cache: make sure the overlay is gone if the user comes back
+            window.addEventListener('pageshow', () => {
+                busy = false;
+                const overlay = document.getElementById('nh-saving');
+                overlay.classList.add('hidden'); overlay.classList.remove('flex');
+                form.querySelectorAll('button[type="submit"]').forEach(b => b.disabled = false);
+            });
+        })();
     </script>
 
 </body>
